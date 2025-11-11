@@ -1,1 +1,4 @@
-streamlit-community-navigation-bar
+streamlit-navigation-bar
+plotly.express
+pandas
+requests
