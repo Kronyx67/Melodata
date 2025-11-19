@@ -1,10 +1,30 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import os
+
+DATA_FOLDER = "data"
+
+def load_csv_folder(folder):
+    dataframes = {}
+    for filename in os.listdir(folder):
+        if filename.endswith(".csv"):
+            path = os.path.join(folder, filename)
+            dataframes[filename] = pd.read_csv(path)
+    return dataframes
+
+# Chargement unique dans session_state
+if "data" not in st.session_state:
+    st.session_state.data = load_csv_folder(DATA_FOLDER)
+
+
+
 
 def show_page():
-    import streamlit as st
-    import pandas as pd
-    import numpy as np
-    import plotly.express as px
+    
+    st.write("Fichiers chargés :", list(st.session_state.data.keys()))
+    #st.dataframe(st.session_state.data["Justin.csv"])
 
     # --- Configuration de la page ---
     st.set_page_config(page_title="Heatmap des écoutes", layout="wide")
