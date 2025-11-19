@@ -26,6 +26,7 @@ pages = st_navbar(["Accueil", "Solo", "Duo"])
 
 
 
+
 # Affichage de la page sélectionnée
 if pages == "Accueil":
     Accueil.show_page()
