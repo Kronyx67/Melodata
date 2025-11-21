@@ -10,19 +10,9 @@ def show_page():
     st.set_page_config(page_title="SoloPage", layout="wide")
 
     st.title("🎧Solo Page")
-
-    st.set_page_config(page_title="Dashboard Last.fm", layout="wide")
-    st.title("🎧 Dashboard Last.fm")
-    
-    # --- Sélecteur de fichier parmi ceux chargés en session ---
-    fichier_selectionne = st.selectbox(
-        "Choisissez un fichier à analyser",
-        list(st.session_state.data.keys())
-    )
     
     # Récupération du DataFrame choisi
-    df = st.session_state.data[fichier_selectionne].copy()
-    df = st.session_state.data[f"{st.session_state.utilisateur_selectionne}.csv"]
+    df = st.session_state.data[f"{st.session_state.utilisateur_selectionne}.csv"].copy()
     
     # --- Tabs principales ---
     tab1, tab2 = st.tabs(["📊 Heatmap", "🏁 Bar Chart Race"])
@@ -163,8 +153,8 @@ def show_page():
         
         # Générer automatiquement la vidéo
         # Utiliser un cache basé sur le fichier et les paramètres
-        cache_key = f"{fichier_selectionne}_{period}_{top_n}"
-        
+        cache_key = f"{st.session_state.utilisateur_selectionne}.csv_{period}_{top_n}"
+
         if 'video_cache' not in st.session_state:
             st.session_state.video_cache = {}
         
