@@ -9,18 +9,12 @@ def show_page():
     #st.dataframe(st.session_state.data["Justin.csv"])
 
     # --- Configuration de la page ---
-    st.set_page_config(page_title="Heatmap des écoutes", layout="wide")
+    st.set_page_config(page_title="SoloPage", layout="wide")
 
-    st.title("🎧 Activité d’écoute par semaine et jour de la semaine")
-
-    # --- Sélecteur de fichier parmi ceux chargés en session ---
-    fichier_selectionne = st.selectbox(
-        "Choisissez un fichier à analyser",
-        list(st.session_state.data.keys())
-    )
+    st.title("🎧Solo Page")
 
     # Récupération du DataFrame choisi
-    df = st.session_state.data[fichier_selectionne]
+    df = st.session_state.data[f"{st.session_state.utilisateur_selectionne}.csv"]
     
     tab1, tab2, tab3 = st.tabs(["Heatmap", "Histogramme", "Courbe"])
     

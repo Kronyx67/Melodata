@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_navigation_bar import st_navbar
 import os
 import pandas as pd
-
 import Accueil
 import Solo
 import Duo
@@ -24,13 +23,18 @@ if "data" not in st.session_state:
 
 pages = st_navbar(["Accueil", "Solo", "Duo"])
 
-
-
-
 # Affichage de la page sélectionnée
 if pages == "Accueil":
     Accueil.show_page()
 elif pages == "Solo":
-    Solo.show_page()
+    if  st.session_state.utilisateur_selectionne is None:
+        st.warning("Veuillez d'abord sélectionner un utilisateur sur la page Accueil.")
+        st.stop()  
+    else:
+        Solo.show_page()
 elif pages == "Duo":
-    Duo.show_page()
+    if  st.session_state.utilisateur_selectionne is None:
+        st.warning("Veuillez d'abord sélectionner un utilisateur sur la page Accueil.")
+        st.stop() 
+    else:   
+        Duo.show_page()
