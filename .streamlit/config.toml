@@ -1,6 +1,6 @@
 [theme]
-primaryColor = "#9C27B0"
-backgroundColor = "#F3E5F5"          
-secondaryBackgroundColor = "#E1BEE7" 
-textColor = "#4A148C"                
+primaryColor = "#8B5CF6"            # Violet vif pour les boutons
+backgroundColor = "#FAFAFA"          # Fond blanc cassé (plus doux que blanc pur)
+secondaryBackgroundColor = "#F3E8FF" # Violet très pâle pour sidebar
+textColor = "#1F2937"                # Gris très foncé (meilleur que noir pur)
 font = "sans serif"

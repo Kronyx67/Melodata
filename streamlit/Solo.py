@@ -86,7 +86,7 @@ def show_page():
         # CSS pour aligner verticalement les widgets (optionnel mais plus joli)
         st.markdown('<style>div.row-widget.stSelectbox {margin-top: -15px;}</style>', unsafe_allow_html=True)
         
-        c1, c2, c3 = st.columns([1, 1, 2])
+        c1, c2, c3 = st.columns([1, 1, 1])
 
         # --- COL 1 : PÉRIODES RAPIDES ---
         with c1:

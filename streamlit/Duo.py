@@ -9,7 +9,10 @@ from functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
 def show_page():
     st.title("Duo Page")
 
-    fichiers = os.listdir("./data")
+    fichiers = [
+        f for f in os.listdir("./data")
+        if f.endswith(".csv") and os.path.isfile(os.path.join("./data", f))
+    ]
     fichiers = [f for f in fichiers if os.path.isfile(os.path.join("./data", f))]
     users = [f.replace(".csv", "") for f in fichiers]
     users.remove(st.session_state.utilisateur_selectionne)
