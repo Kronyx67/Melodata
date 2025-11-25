@@ -15,7 +15,7 @@ def show_page():
     df = st.session_state.data[f"{st.session_state.utilisateur_selectionne}.csv"].copy()
     
     # --- Tabs principales ---
-    tab1, tab2 , tab3= st.tabs(["📊 Heatmap", "🏁 Bar Chart Race","Artistes"])
+    tab1, tab2 , tab3, tab4= st.tabs(["📊 Heatmap", "🏁 Bar Chart Race","🏆 Artistes","🎵 Meloz" ])
     
     # ========== TAB 1: HEATMAP ==========
     with tab1:
@@ -319,38 +319,164 @@ def show_page():
         st.divider()
 
         # --- TROISIÈME LIGNE : DÉTAILS MENSUELS & TRACKS ---
-        col3, col4 = st.columns(2)
+        
+        # 1. ZONE DE TITRES ET CONTRÔLES (Première ligne de colonnes)
+        head_col1, head_col2 = st.columns(2)
 
-        with col3:
+        with head_col1:
             st.markdown("### 🗓️ Artiste favori par mois")
-            
-            # Calcul du top 1 par mois
-            monthly_stats = df.groupby(["month_str", "artist"]).size().reset_index(name="plays")
-            # On trie par mois puis par plays pour prendre le dernier (le plus grand)
-            monthly_stats = monthly_stats.sort_values(["month_str", "plays"], ascending=[True, False])
-            
-            # On dédoublonne sur le mois en gardant le premier (donc le plus grand plays)
-            top_month = monthly_stats.drop_duplicates(subset=["month_str"], keep="first")
-            
-            # Mise en forme
-            top_month = top_month.rename(columns={"month_str": "Mois", "artist": "Artiste Top 1", "plays": "Écoutes"})
-            top_month = top_month.reset_index(drop=True)
-            
-            st.dataframe(top_month, use_container_width=True, hide_index=True)
+            # On ne met rien d'autre ici
 
-        with col4:
+        with head_col2:
             st.markdown("### 🎵 Top Tracks par Artiste")
-            
-            # Liste des artistes triée alphabétiquement
+            # Liste des artistes
             liste_artistes = sorted(df["artist"].dropna().unique())
+            # Le selectbox est ici, au-dessus du futur tableau
+            artist_selected = st.selectbox("Choisir un artiste", liste_artistes, label_visibility="collapsed")
+            # Note: label_visibility="collapsed" cache le label "Choisir un artiste" pour gagner de la place si le titre suffit
+
+        # 2. ZONE DES DONNÉES (Deuxième ligne de colonnes)
+        # Comme c'est une nouvelle rangée de colonnes, elle commencera 
+        # sous l'élément le plus bas de la rangée précédente.
+        data_col1, data_col2 = st.columns(2)
+
+        with data_col1:
+            # --- Calcul pour la gauche ---
+            monthly_stats = df.groupby(["month_str", "artist"]).size().reset_index(name="plays")
             
-            # Sélecteur
-            artist_selected = st.selectbox("Choisir un artiste pour voir ses titres phares", liste_artistes)
+            # Trouver le top 1
+            idx = monthly_stats.groupby("month_str")["plays"].idxmax()
+            top_month = monthly_stats.loc[idx]
             
+            # Tri par date décroissante (le plus récent en haut)
+            top_month = top_month.sort_values("month_str", ascending=False)
+            
+            # === MODIFICATION ICI ===
+            # On convertit la chaîne 'YYYY-MM' en objet Date pour la reformater en 'Month Year' (ex: November 2023)
+            # %B = Mois complet (January), %Y = Année (2023)
+            top_month["formatted_date"] = pd.to_datetime(top_month["month_str"]).dt.strftime('%B %Y')
+            
+            # On sélectionne les colonnes dans l'ordre voulu et on renomme
+            top_month_display = top_month[["formatted_date", "artist", "plays"]].rename(
+                columns={"formatted_date": "Mois", "artist": "Artiste Top 1", "plays": "Écoutes"}
+            )
+            
+            # Affichage
+            st.dataframe(
+                top_month_display, 
+                use_container_width=True, 
+                hide_index=True,
+                height=400
+            )
+
+        with data_col2:
+            # --- Calcul pour la droite ---
             if artist_selected:
-                # Calcul
-                top_tracks = df[df["artist"] == artist_selected]["track"].value_counts().head(10).reset_index()
+                top_tracks = df[df["artist"] == artist_selected]["track"].value_counts().head(50).reset_index()
                 top_tracks.columns = ["Titre", "Écoutes"]
                 top_tracks.index = top_tracks.index + 1
                 
-                st.dataframe(top_tracks, use_container_width=True)
+                # Affichage
+                st.dataframe(
+                    top_tracks, 
+                    use_container_width=True,
+                    height=400
+                )
+        
+    # ========== TAB 4: TRACKS ==========
+    with tab4:
+        st.header("Analyse des Morceaux (Tracks)")
+
+        # --- PREMIÈRE PARTIE : LES CLASSEMENTS ---
+        col_top, col_week = st.columns(2)
+
+        with col_top:
+            st.subheader("🥇 Top Tracks (Période)")
+            
+            # Filtre temporel spécifique à ce tableau
+            period_options = ["Tout le temps", "Cette année", "6 derniers mois", "Dernier mois"]
+            selected_period = st.selectbox("Période d'analyse", period_options)
+            
+            # Filtrage des données
+            df_tracks = df.copy()
+            now = df["utc_time"].max() # On prend la date max des données comme référence
+            
+            if selected_period == "Cette année":
+                df_tracks = df_tracks[df_tracks["utc_time"].dt.year == now.year]
+            elif selected_period == "6 derniers mois":
+                start_date = now - pd.DateOffset(months=6)
+                df_tracks = df_tracks[df_tracks["utc_time"] >= start_date]
+            elif selected_period == "Dernier mois":
+                start_date = now - pd.DateOffset(months=1)
+                df_tracks = df_tracks[df_tracks["utc_time"] >= start_date]
+            
+            # Calcul du Top 10
+            # On groupe par Artiste ET Track pour éviter de mélanger deux chansons du même nom
+            top_tracks = df_tracks.groupby(["artist", "track"]).size().reset_index(name="Écoutes")
+            top_tracks = top_tracks.sort_values("Écoutes", ascending=False).head(10)
+            
+            # Mise en forme pour l'affichage
+            top_tracks["Morceau"] = top_tracks["artist"] + " - " + top_tracks["track"]
+            display_top = top_tracks[["Morceau", "Écoutes"]].reset_index(drop=True)
+            display_top.index += 1
+            
+            st.dataframe(display_top, use_container_width=True, height=400)
+
+        with col_week:
+            st.subheader("📅 Les Inusables")
+            st.caption("Tracks écoutés sur le plus grand nombre de semaines distinctes")
+            
+            # Calcul des semaines uniques
+            # On utilise df global (pas le filtré) pour voir la longévité réelle
+            track_longevity = df.groupby(["artist", "track"])["week"].nunique().reset_index(name="Semaines actives")
+            track_longevity = track_longevity.sort_values("Semaines actives", ascending=False).head(10)
+            
+            # Mise en forme
+            track_longevity["Morceau"] = track_longevity["artist"] + " - " + track_longevity["track"]
+            display_long = track_longevity[["Morceau", "Semaines actives"]].reset_index(drop=True)
+            display_long.index += 1
+            
+            st.dataframe(display_long, use_container_width=True, height=400)
+
+        st.divider()
+
+        # --- SECONDE PARTIE : LE SCATTER PLOT (ALL SCROBBLES) ---
+        st.subheader("🌌 Distribution temporelle des écoutes")
+
+        # Préparation des données pour le scatter plot
+        # 1. Axe X : La date (déjà utc_time)
+        # 2. Axe Y : L'heure sous forme décimale (ex: 14h30 -> 14.5) pour un placement précis
+        df["hour_decimal"] = df["utc_time"].dt.hour + (df["utc_time"].dt.minute / 60)
+        
+        # Création du graphe
+        # render_mode='webgl' est CRUCIAL si vous avez beaucoup de données (>10k points) pour que ça reste fluide
+        fig_scatter = px.scatter(
+            df, 
+            x="utc_time", 
+            y="hour_decimal",
+            color_discrete_sequence=["#1f77b4"], # Bleu standard, changez le code hex si besoin
+            opacity=0.3, # Transparence pour voir la densité (comme sur l'image)
+            render_mode="webgl", 
+            hover_data={"artist": True, "track": True, "hour_decimal": False}
+        )
+
+        # Configuration des axes pour imiter l'image
+        fig_scatter.update_layout(
+            yaxis=dict(
+                title="Heure de la journée",
+                range=[24, 0], # INVERSION : 00:00 en haut, 24:00 en bas
+                tickmode="array",
+                tickvals=[0, 4, 8, 12, 16, 20, 24],
+                ticktext=["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
+            ),
+            xaxis=dict(
+                title="Date"
+            ),
+            height=500, # Hauteur du graphe
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
+        
+        # Petits ajustements des points
+        fig_scatter.update_traces(marker=dict(size=3)) # Taille des points
+        
+        st.plotly_chart(fig_scatter, use_container_width=True)
