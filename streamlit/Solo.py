@@ -16,9 +16,20 @@ def show_page():
     # 1. Conversion indispensable
     df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
     
+    
     # 2. Bornes globales (Min et Max des données)
     min_glob = df["utc_time"].min().date()
     max_glob = df["utc_time"].max().date()
+    
+    # ====================================================================
+    # ÉTAPE 2 : INITIALISER LE STATE (CRÉATION DES VARIABLES)
+    # C'est impératif de le faire AVANT de tenter de les lire ou de les corriger
+    # ====================================================================
+    if 'date_start' not in st.session_state:
+        st.session_state.date_start = min_glob
+        
+    if 'date_end' not in st.session_state:
+        st.session_state.date_end = max_glob
 
     # --- INITIALISATION DU STATE (Mémoire) ---
     # 1. On corrige la date de début si elle est hors limites
