@@ -6,8 +6,7 @@ import plotly.express as px
 def get_top_artists(df, max_user_share=0.8):
     # Compter le nombre d'écoutes par artiste et par utilisateur
     user_artist_counts = df.groupby(['artist', 'user']).size().unstack(fill_value=0)
-    user1 = user_artist_counts.columns[0]
-    user2 = user_artist_counts.columns[1]
+    user1, user2 = df['user'].unique()
 
     # Calculer le nombre total d'écoutes par artiste
     artist_totals = user_artist_counts.sum(axis=1)
@@ -40,7 +39,7 @@ def get_top_artists(df, max_user_share=0.8):
         total = row['Total écoutes']
         count_user1 = user_artist_counts.loc[artist, user1]
         count_user2 = user_artist_counts.loc[artist, user2]
-        top_artists.at[i, f"% des écoutes de {user1}"] = f"{int((count_user1 / total) * 100):.2f}%"
+        top_artists.at[i, f"% des écoutes de {user1}"] = f"{int((count_user1 / total) * 100)}%"
 
     return top_artists
 
@@ -54,8 +53,7 @@ def get_top_albums(df, max_user_share=0.8):
 
     # Compter le nombre d'écoutes par album et par utilisateur
     user_album_counts = filtered_df.groupby(['album', 'user']).size().unstack(fill_value=0)
-    user1 = user_album_counts.columns[0]
-    user2 = user_album_counts.columns[1]
+    user1, user2 = df['user'].unique()
 
     # Calculer le nombre total d'écoutes par album
     album_totals = user_album_counts.sum(axis=1)
@@ -95,7 +93,7 @@ def get_top_albums(df, max_user_share=0.8):
         count_user1 = user_album_counts.loc[album, user1]
 
         # Calculer le pourcentage
-        top_albums.at[i, f"% des écoutes de {user1}"] = f"{100 * count_user1 / total:.1f}%"
+        top_albums.at[i, f"% des écoutes de {user1}"] = f"{int((count_user1 / total) * 100)}%"
 
     return top_albums
 
@@ -136,7 +134,7 @@ def get_top_tracks(df, max_user_share=0.8, top_n=5):
             "Track": track,
             "Artiste": artist,
             "Total écoutes": int(total),
-            f"% {user1}": f"{100 * c1 / total:.1f}%",
+            f"% {user1}": f"{int((c1 / total) * 100)}%"
         })
 
     result = pd.DataFrame(rows)
@@ -188,47 +186,53 @@ def get_cumulative_unique_artists_plot(df):
 
     return fig
 
-import pandas as pd
-import plotly.graph_objects as go
-
 def get_total_and_unique_tracks_plot(df):
-    # Conversion date
+    # --- 0) Préparer la colonne date ---
     df['date'] = pd.to_datetime(df['utc_time']).dt.date
 
-    # --- 1) CUMUL TOTAL D'ÉCOUTES ---
+    users = df['user'].unique()
+    all_dates = sorted(df['date'].unique())
+
+    # --- 1) Total d'écoutes cumulées ---
     total_counts = (
         df.groupby(['user', 'date'])
         .size()
-        .groupby(level='user')
-        .cumsum()
         .reset_index(name='cumulative_total_listens')
     )
 
-    # --- 2) CUMUL TRACKS UNIQUES ---
+    # Créer full index user x date pour total écoutes
+    full_index_total = pd.MultiIndex.from_product([users, all_dates], names=['user', 'date'])
+    total_counts = pd.DataFrame(index=full_index_total).reset_index().merge(
+        total_counts, on=['user', 'date'], how='left'
+    ).fillna(0)
+    total_counts['cumulative_total_listens'] = total_counts.groupby('user')['cumulative_total_listens'].cumsum()
+
+    # --- 2) Tracks uniques cumulées ---
     df_unique = df.drop_duplicates(subset=['user', 'artist', 'track'])
     unique_counts = (
         df_unique.groupby(['user', 'date'])
         .size()
-        .groupby(level='user')
-        .cumsum()
         .reset_index(name='cumulative_unique_tracks')
     )
 
-    # --- 3) Fusion des deux ---
+    # Créer full index user x date pour unique tracks
+    full_index_unique = pd.MultiIndex.from_product([users, all_dates], names=['user', 'date'])
+    cumulative_unique = pd.DataFrame(index=full_index_unique).reset_index().merge(
+        unique_counts, on=['user', 'date'], how='left'
+    ).fillna(0)
+    cumulative_unique['cumulative_unique_tracks'] = cumulative_unique.groupby('user')['cumulative_unique_tracks'].cumsum()
+
+    # --- 3) Fusionner total et unique tracks ---
     merged = pd.merge(
         total_counts,
-        unique_counts,
+        cumulative_unique,
         on=['user', 'date'],
         how='outer'
-    ).sort_values(['user', 'date']).fillna(method='ffill')
+    ).sort_values(['user', 'date'])
 
-    # --- 4) Graphique à double axe ---
+    # --- 4) Création du graphique ---
     fig = go.Figure()
-
-    users = merged['user'].unique()
-
-    # Couleurs cohérentes (1 couleur / user)
-    base_colors = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]
+    base_colors = ["#d62728","#1f77b4", "#2ca02c", "#9467bd"]
 
     for i, user in enumerate(users):
         user_data = merged[merged['user'] == user]
@@ -278,7 +282,6 @@ def get_total_and_unique_tracks_plot(df):
     )
 
     return fig
-
 
 
 def get_top_artists_treemap(df):
