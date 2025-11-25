@@ -2,6 +2,9 @@ import streamlit as st
 import os
 import plotly.graph_objects as go
 import pandas as pd
+from functions.Duo import get_top_artists, get_cumulative_unique_artists_plot, get_top_artists_treemap
+from functions.Duo import get_top_albums
+from functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
 
 def show_page():
     st.title("Duo Page")
@@ -28,18 +31,18 @@ def show_page():
                     st.session_state.suggestions = []
 
     if "user_duo" in st.session_state:
+        df1 = pd.read_csv(f"./data/{st.session_state.utilisateur_selectionne}.csv")
+        df2 = pd.read_csv(f"./data/{st.session_state.user_duo}.csv")
+        time_min = max(df1["uts"].min(), df2["uts"].min())
+        df1["user"] = st.session_state.utilisateur_selectionne
+        df2["user"] = st.session_state.user_duo   
+
+        df = pd.concat([df1, df2], ignore_index=True)
+        df= df[df["uts"] > time_min]
+
         tab1, tab2, tab3, tab4 = st.tabs(["Activity", "Artists", "Albums", "Tracks"])
 
         with tab1:
-                df1 = pd.read_csv(f"./data/{st.session_state.utilisateur_selectionne}.csv")
-                df2 = pd.read_csv(f"./data/{st.session_state.user_duo}.csv")
-                time_min = max(df1["uts"].min(), df2["uts"].min())
-                df1["user"] = st.session_state.utilisateur_selectionne
-                df2["user"] = st.session_state.user_duo   
-
-                df = pd.concat([df1, df2], ignore_index=True)
-                df= df[df["uts"] > time_min]
-                
                 # --- Convertir la colonne de temps ---
                 df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
 
@@ -122,5 +125,42 @@ def show_page():
 
                 st.title("Duo Activity Comparison")
                 st.plotly_chart(fig)
-                        
+        
+        with tab2:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("""
+                Ce tableau affiche les 5 artistes les plus écoutés en commun,
+                avec la condition qu'un seul utilisateur ne représente pas plus de 80% des écoutes d'un artiste.
+                """)
 
+                top_artists = get_top_artists(df)
+                st.subheader("Top 5 des artistes")
+                st.dataframe(top_artists)
+
+            with col2:
+                # Génération et affichage du graphique
+                fig = get_cumulative_unique_artists_plot(df)
+                st.plotly_chart(fig, use_container_width=True)
+
+
+            # 2. Treemap du top 10 des artistes
+            fig2 = get_top_artists_treemap(df)
+            st.plotly_chart(fig2, use_container_width=True)
+
+        with tab3:
+            top_albums = get_top_albums(df)
+            st.subheader("Top 5 des albums les plus écoutés en commun")
+            st.dataframe(top_albums)
+
+        with tab4:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                top_tracks = get_top_tracks(df)
+                st.subheader("Top 5 des titres les plus écoutés en commun")
+                st.dataframe(top_tracks)
+
+            with col2:
+                fig = get_total_and_unique_tracks_plot(df)
+                st.plotly_chart(fig, use_container_width=True)
