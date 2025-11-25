@@ -13,9 +13,128 @@ def show_page():
     
     # Récupération du DataFrame choisi
     df = st.session_state.data[f"{st.session_state.utilisateur_selectionne}.csv"].copy()
+    # 1. Conversion indispensable
+    df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
+    
+    # 2. Bornes globales (Min et Max des données)
+    min_glob = df["utc_time"].min().date()
+    max_glob = df["utc_time"].max().date()
+
+    # --- INITIALISATION DU STATE (Mémoire) ---
+    # 1. On corrige la date de début si elle est hors limites
+    if st.session_state.date_start < min_glob:
+        st.session_state.date_start = min_glob
+    elif st.session_state.date_start > max_glob:
+        st.session_state.date_start = min_glob # Reset au début si incohérent
+
+    # 2. On corrige la date de fin si elle dépasse la date max du fichier
+    if st.session_state.date_end > max_glob:
+        st.session_state.date_end = max_glob
+    elif st.session_state.date_end < min_glob:
+        st.session_state.date_end = max_glob
+
+    # 3. Sécurité finale : si Start > End, on réinitialise tout
+    if st.session_state.date_start > st.session_state.date_end:
+        st.session_state.date_start = min_glob
+        st.session_state.date_end = max_glob
+
+    # --- FONCTIONS DE CALLBACK (Ce qui se passe quand on change une option) ---
+    
+    def update_from_preset():
+        """Met à jour les dates selon la période rapide choisie"""
+        choix = st.session_state.preset_selector
+        if choix == "Tout le temps":
+            st.session_state.date_start = min_glob
+            st.session_state.date_end = max_glob
+        elif "derniers jours" in choix:
+            days = int(choix.split()[0]) # Récupère 7, 30 ou 90
+            st.session_state.date_end = max_glob
+            st.session_state.date_start = max_glob - pd.Timedelta(days=days)
+        # On remet l'année sur "Sélectionner" pour éviter la confusion
+        st.session_state.year_selector = "Sélectionner"
+
+    def update_from_year():
+        """Met à jour les dates selon l'année choisie"""
+        annee = st.session_state.year_selector
+        if annee != "Sélectionner":
+            # Début de l'année (ou min global si données commencent après)
+            start = pd.Timestamp(f"{annee}-01-01").date()
+            st.session_state.date_start = max(start, min_glob)
+            
+            # Fin de l'année (ou max global)
+            end = pd.Timestamp(f"{annee}-12-31").date()
+            st.session_state.date_end = min(end, max_glob)
+            
+            # On remet le preset sur "Personnalisé"
+            st.session_state.preset_selector = "Personnalisé"
+
+    # ====================================================================
+    # 📅 ZONE DE FILTRAGE (3 COLONNES)
+    # ====================================================================
+    with st.container():
+        # CSS pour aligner verticalement les widgets (optionnel mais plus joli)
+        st.markdown('<style>div.row-widget.stSelectbox {margin-top: -15px;}</style>', unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns([1, 1, 2])
+
+        # --- COL 1 : PÉRIODES RAPIDES ---
+        with c1:
+            st.selectbox(
+                "⚡ Périodes rapides",
+                options=["Personnalisé", "Tout le temps", "7 derniers jours", "30 derniers jours", "90 derniers jours", "365 derniers jours"],
+                key="preset_selector",
+                on_change=update_from_preset # Déclenche la fonction quand on change
+            )
+
+        # --- COL 2 : ANNÉE ---
+        with c2:
+            years_avail = sorted(df["utc_time"].dt.year.unique(), reverse=True)
+            st.selectbox(
+                "📂 Année",
+                options=["Sélectionner"] + years_avail,
+                key="year_selector",
+                on_change=update_from_year # Déclenche la fonction quand on change
+            )
+
+        # --- COL 3 : CALENDRIER (Le maître du jeu) ---
+        with c3:
+            # Le widget prend ses valeurs par défaut dans le session_state mis à jour par les colonnes 1 et 2
+            dates = st.date_input(
+                "📅 Sélection des dates",
+                value=(st.session_state.date_start, st.session_state.date_end),
+                min_value=min_glob,
+                max_value=max_glob,
+                format="DD/MM/YYYY"
+            )
+
+    # ====================================================================
+    # APPLICATION DU FILTRE
+    # ====================================================================
+    
+    # Vérification que l'utilisateur a bien sélectionné une date de fin
+    if len(dates) == 2:
+        start_sel, end_sel = dates
+        # Mise à jour du state si l'utilisateur change manuellement le calendrier
+        st.session_state.date_start = start_sel
+        st.session_state.date_end = end_sel
+        
+        # Filtre effectif sur le DataFrame
+        mask = (df["utc_time"].dt.date >= start_sel) & (df["utc_time"].dt.date <= end_sel)
+        
+        # Sauvegarde taille avant
+        total_rows = len(df)
+        df = df.loc[mask].copy()
+        
+        # Feedback visuel discret
+        st.caption(f"✅ **{len(df)}** écoutes affichées (du {start_sel.strftime('%d/%m/%Y')} au {end_sel.strftime('%d/%m/%Y')})")
+    else:
+        st.warning("Veuillez sélectionner une date de fin dans le calendrier.")
+        st.stop() # Arrête l'exécution tant que les dates ne sont pas valides
+
+    st.divider()
     
     # --- Tabs principales ---
-    tab1, tab2 , tab3, tab4= st.tabs(["📊 Heatmap", "🏁 Bar Chart Race","🏆 Artistes","🎵 Meloz" ])
+    tab1, tab2 , tab3, tab4, tab5= st.tabs(["📊 Heatmap", "🏁 Bar Chart Race","🏆 Artistes","🎵 Meloz", "💿 Albums"])
     
     # ========== TAB 1: HEATMAP ==========
     with tab1:
@@ -81,149 +200,83 @@ def show_page():
         )
         
         st.plotly_chart(fig, use_container_width=True)
-    
-    # # ========== TAB 2: BAR CHART RACE ==========
-    # with tab2:
-    #     st.header("Top Artistes les plus écoutés")
         
-    #     # Configuration simple
-    #     col1, col2 = st.columns(2)
+        # Deuxième fisu heatmap
         
-    #     with col1:
-    #         top_n = st.slider("Nombre d'artistes", 5, 20, 10)
+        st.divider()
+        st.subheader("☀️ Artistes du Matin vs 🌙 Artistes du Soir")
         
-    #     with col2:
-    #         period = st.selectbox("Période", ["Semaine", "Mois", "Trimestre"], index=1)
-        
-    #     # Préparation des données
-    #     df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
-        
-    #     # === NETTOYAGE DES CARACTÈRES SPÉCIAUX ===
-    #     def clean_name(name):
-    #         if pd.isna(name):
-    #             return name
-    #         replacements = {
-    #             '$': 'S',
-    #             '_': ' ',
-    #             '^': '',
-    #             '{': '(',
-    #             '}': ')',
-    #             '\\': '',
-    #             '~': '',
-    #             '#': '',
-    #             '%': '',
-    #             '&': 'and'
-    #         }
-    #         cleaned = str(name)
-    #         for old, new in replacements.items():
-    #             cleaned = cleaned.replace(old, new)
-    #         return cleaned
-        
-    #     df["artist"] = df["artist"].apply(clean_name)
-        
-    #     # Mapping des périodes
-    #     period_map = {
-    #         "Semaine": "W",
-    #         "Mois": "M",
-    #         "Trimestre": "Q"
-    #     }
-        
-    #     # Créer la colonne de période
-    #     df["period"] = df["utc_time"].dt.to_period(period_map[period])
-        
-    #     # Compter les écoutes par artiste et période
-    #     artist_plays = (
-    #         df.groupby(['period', 'artist'])
-    #         .size()
-    #         .reset_index(name='plays')
-    #     )
-        
-    #     # Créer le tableau pivot avec périodes en index et artistes en colonnes
-    #     pivot_df = artist_plays.pivot(
-    #         index='period',
-    #         columns='artist',
-    #         values='plays'
-    #     ).fillna(0)
-        
-    #     # Convertir l'index en datetime pour bar_chart_race
-    #     pivot_df.index = pivot_df.index.to_timestamp()
-        
-    #     # Calculer le cumul au fil du temps
-    #     cumulative_df = pivot_df.cumsum()
-        
-    #     # Générer automatiquement la vidéo
-    #     # Utiliser un cache basé sur le fichier et les paramètres
-    #     cache_key = f"{st.session_state.utilisateur_selectionne}.csv_{period}_{top_n}"
+        # --- COMMANDES UTILISATEUR ---
+        col_ctrl, col_info = st.columns([1, 2])
+        with col_ctrl:
+            mode_affichage = st.radio(
+                "Mode d'affichage :",
+                ["Volume (Écoutes)", "Normalisé (%)"],
+                horizontal=True
+            )
+        with col_info:
+            if mode_affichage == "Volume (Écoutes)":
+                st.caption("Affiche le nombre réel d'écoutes. Les artistes les plus populaires ressortent davantage.")
+            else:
+                st.caption("Affiche la concentration horaire. Idéal pour voir les habitudes (ex: artiste du soir) même pour ceux moins écoutés.")
 
-    #     if 'video_cache' not in st.session_state:
-    #         st.session_state.video_cache = {}
+        # --- 1. PRÉPARATION DES DONNÉES (Commune aux deux modes) ---
+        # On récupère le Top 20
+        top20_artists = df["artist"].value_counts().head(20).index
+        df_heat_art = df[df["artist"].isin(top20_artists)].copy()
         
-    #     if cache_key not in st.session_state.video_cache:
-    #         with st.spinner("⏳ Génération du Bar Chart Race en cours... (cela peut prendre quelques instants)"):
-    #             try:
-    #                 html_str = bcr.bar_chart_race(
-    #                     df=cumulative_df,
-    #                     filename=None,
-    #                     n_bars=top_n,
-    #                     sort='desc',
-    #                     title='Top Artistes les plus écoutés',
-    #                     period_length=1500,
-    #                     steps_per_period=20,
-    #                     figsize=(6, 4),
-    #                     cmap='tab20',
-    #                     bar_label_size=10,
-    #                     tick_label_size=10,
-    #                     period_label={'x': .98, 'y': .3, 'ha': 'right', 'va': 'center'},
-    #                     period_fmt='%B %Y' if period_map[period] == 'M' else '%Y-W%U',
-    #                     filter_column_colors=True
-    #                 ).data
-                    
-    #                 # Extraire la vidéo encodée en base64
-    #                 start = html_str.find('base64,') + len('base64,')
-    #                 end = html_str.find('">')
-    #                 video = base64.b64decode(html_str[start:end])
-                    
-    #                 # Stocker dans le cache
-    #                 st.session_state.video_cache[cache_key] = video
-                    
-    #                 st.success("✅ Animation générée avec succès !")
-                    
-    #             except Exception as e:
-    #                 st.error(f"❌ Erreur lors de la génération : {str(e)}")
-    #                 st.info("💡 Essayez de réduire le nombre d'artistes")
-    #                 video = None
-    #     else:
-    #         video = st.session_state.video_cache[cache_key]
-    #         #st.info("📼 Vidéo chargée depuis le cache")
+        df_heat_art["hour"] = df_heat_art["utc_time"].dt.hour
         
-    #     # Afficher la vidéo
-    #     if video:
-    #         st.video(video)
-            
-    #         # Statistiques
-    #         st.divider()
-    #         st.subheader("📊 Statistiques")
-    #         col1, col2, col3 = st.columns(3)
-            
-    #         final_top = cumulative_df.iloc[-1].nlargest(5)
-            
-    #         with col1:
-    #             st.metric("Total périodes", len(cumulative_df))
-            
-    #         with col2:
-    #             st.metric("Artiste #1", final_top.index[0])
-            
-    #         with col3:
-    #             st.metric("Écoutes top artiste", int(final_top.values[0]))
-            
-    #         # Top 5 final
-    #         st.subheader("🏆 Top 5 Final")
-    #         top5_df = pd.DataFrame({
-    #             'Artiste': final_top.index,
-    #             'Écoutes totales': final_top.values.astype(int)
-    #         }).reset_index(drop=True)
-    #         top5_df.index += 1
-    #         st.dataframe(top5_df, width=True)
+        # Matrice croisée de base (Volume)
+        heat_data = df_heat_art.groupby(["artist", "hour"]).size().reset_index(name="plays")
+        matrix_art = heat_data.pivot(index="artist", columns="hour", values="plays").fillna(0)
+        
+        # On applique l'ordre du Top 20
+        matrix_art = matrix_art.reindex(top20_artists)
+        
+        # Compléter les heures manquantes
+        for h in range(24):
+            if h not in matrix_art.columns:
+                matrix_art[h] = 0
+        matrix_art = matrix_art.sort_index(axis=1)
+
+        # --- 2. LOGIQUE D'AFFICHAGE ---
+        if mode_affichage == "Normalisé (%)":
+            # Calcul du pourcentage par ligne
+            matrix_to_plot = matrix_art.div(matrix_art.sum(axis=1), axis=0) * 100
+            z_label = "Concentration (%)"
+            hover_fmt = ".1f"
+            color_scale = "RdBu_r" # Rouge pour les forts pourcentages
+        else:
+            # Données brutes
+            matrix_to_plot = matrix_art
+            z_label = "Écoutes"
+            hover_fmt = "d" # Entier
+            color_scale = "RdBu_r" # Échelle différente pour bien distinguer visuellement
+
+        # --- 3. CRÉATION DU GRAPHIQUE ---
+        fig_heat = px.imshow(
+            matrix_to_plot,
+            labels=dict(x="Heure", y="Artiste", color=z_label),
+            color_continuous_scale=color_scale,
+            aspect="auto",
+            height=600
+        )
+        
+        # Configuration du style
+        fig_heat.update_xaxes(side="top", title=None)
+        
+        # Infobulle dynamique selon le mode
+        if mode_affichage == "Normalisé (%)":
+            fig_heat.update_traces(
+                hovertemplate="<b>%{y}</b><br>Heure: %{x}h<br>Concentration: %{z:.1f}%<extra></extra>"
+            )
+        else:
+             fig_heat.update_traces(
+                hovertemplate="<b>%{y}</b><br>Heure: %{x}h<br>Écoutes: %{z}<extra></extra>"
+            )
+
+        st.plotly_chart(fig_heat, use_container_width=True)
     
     
     # ========== TAB 3: ARTISTES ==========
@@ -270,51 +323,66 @@ def show_page():
         # --- DEUXIÈME LIGNE : ÉVOLUTION CUMULÉE ---
         st.subheader("📈 Course aux écoutes (Cumulatif)")
         
-        # 1. On prépare une colonne temporelle triable (Début de semaine)
-        # Cela évite les soucis si vos données couvrent plusieurs années
-        df["week_start"] = df["utc_time"].dt.to_period('W').apply(lambda r: r.start_time)
-        
-        # 2. Filtrer sur le Top 10 actuel
-        top10_list = top_artists["Artiste"].tolist()
-        df_top10 = df[df["artist"].isin(top10_list)]
-        
-        # 3. Compter les écoutes par semaine et par artiste
-        weekly_counts = df_top10.groupby(["week_start", "artist"]).size().reset_index(name="plays")
-        
-        # 4. Pivot pour avoir une colonne par artiste et remplir les trous par 0
-        # C'est CRUCIAL pour que la ligne reste plate quand on n'écoute pas l'artiste, 
-        # au lieu de relier deux points éloignés.
-        pivot_df = weekly_counts.pivot(index="week_start", columns="artist", values="plays").fillna(0)
-        
-        # 5. Calcul du cumul (cumsum)
-        cumulative_df = pivot_df.cumsum()
-        
-        # 6. On remet en format long pour Plotly
-        evolution_final = cumulative_df.reset_index().melt(
-            id_vars="week_start", 
-            var_name="artist", 
-            value_name="cumulative_plays"
-        )
-        
-        # 7. Création du graphique
-        fig_evo = px.line(
-            evolution_final,
-            x="week_start",
-            y="cumulative_plays",
-            color="artist",
-            markers=False, # On enlève les marqueurs pour alléger visuellement le cumul
-            title="Évolution cumulée des écoutes du Top 10",
-            labels={"week_start": "Date", "cumulative_plays": "Total écoutes cumulées", "artist": "Artiste"}
-        )
-        
-        # Amélioration du style
-        fig_evo.update_layout(
-            hovermode="x unified", 
-            xaxis_title="Temps",
-            yaxis_title="Écoutes totales"
-        )
-        
-        st.plotly_chart(fig_evo, use_container_width=True)
+        # Sécurité : Si pas de données filtrées, on arrête là
+        if df.empty:
+            st.warning("⚠️ Aucune donnée disponible sur cette période pour afficher l'évolution.")
+        else:
+            # 1. Adaptation de la granularité temporelle
+            # Si la période est courte (< 30 jours), on regarde par JOUR au lieu de par SEMAINE
+            plage_jours = (df["utc_time"].max() - df["utc_time"].min()).days
+            
+            df_evo = df.copy()
+            
+            if plage_jours < 30:
+                # Mode "Zoom" : Par jour
+                df_evo["time_step"] = df_evo["utc_time"].dt.date
+                period_label = "Date"
+            else:
+                # Mode "Large" : Par semaine
+                df_evo["time_step"] = df_evo["utc_time"].dt.to_period('W').apply(lambda r: r.start_time)
+                period_label = "Semaine"
+
+            # 2. Filtrer sur le Top 10 (Recalculé sur la période filtrée)
+            # On prend les artistes affichés dans le tableau juste au-dessus
+            top10_list = top_artists["Artiste"].tolist() if "Artiste" in top_artists.columns else []
+            df_top10 = df_evo[df_evo["artist"].isin(top10_list)]
+            
+            if df_top10.empty:
+                st.info("Pas assez de données pour le Top 10 sur cette période.")
+            else:
+                # 3. Compter les écoutes
+                counts = df_top10.groupby(["time_step", "artist"]).size().reset_index(name="plays")
+                
+                # 4. Pivot
+                pivot_df = counts.pivot(index="time_step", columns="artist", values="plays").fillna(0)
+                
+                # 5. Cumul
+                cumulative_df = pivot_df.cumsum()
+                
+                # 6. Format long pour Plotly
+                evolution_final = cumulative_df.reset_index().melt(
+                    id_vars="time_step", 
+                    var_name="artist", 
+                    value_name="cumulative_plays"
+                )
+                
+                # 7. Graphique
+                fig_evo = px.line(
+                    evolution_final,
+                    x="time_step",
+                    y="cumulative_plays",
+                    color="artist",
+                    markers=True if plage_jours < 30 else False, # Marqueurs si on a peu de points
+                    title=f"Évolution cumulée ({period_label})",
+                )
+                
+                fig_evo.update_layout(
+                    hovermode="x unified", 
+                    xaxis_title=period_label,
+                    yaxis_title="Total Cumulé"
+                )
+                
+                st.plotly_chart(fig_evo, use_container_width=True)
 
         st.divider()
 
@@ -382,6 +450,72 @@ def show_page():
                     use_container_width=True,
                     height=400
                 )
+        
+        st.divider()
+        st.subheader("🔍 Profondeur d'exploration (Tracks per Artist)")
+        st.caption("Chaque point est un artiste. La ligne représente la tendance moyenne.")
+
+        # 1. Préparation des données
+        # On compte le nombre total d'écoutes (scrobbles) ET le nombre de titres uniques par artiste
+        artist_scatter = df.groupby("artist").agg(
+            scrobbles=('track', 'count'),
+            unique_tracks=('track', 'nunique')
+        ).reset_index()
+
+        # 2. Filtrage (Comme sur votre image : "50+ scrobbles")
+        # On ne garde que les artistes écoutés au moins 50 fois pour éviter le bruit
+        artist_scatter_filtered = artist_scatter[artist_scatter["scrobbles"] >= 50]
+
+        # 3. Création du Graphique
+        # Note : trendline="ols" nécessite le package 'statsmodels' installé (pip install statsmodels)
+        try:
+            fig_scatter_art = px.scatter(
+                artist_scatter_filtered,
+                x="scrobbles",
+                y="unique_tracks",
+                trendline="ols", # Ajoute la ligne de régression linéaire
+                trendline_color_override="#333333", # Couleur de la ligne (Gris foncé)
+                hover_name="artist", # Affiche le nom de l'artiste au survol
+                title="Tracks per artist (50+ scrobbles)",
+                color_discrete_sequence=["#7cb5ec"], # Le bleu clair style Highcharts
+                opacity=0.8
+            )
+        except Exception:
+            # Fallback si statsmodels n'est pas installé : on affiche sans la ligne de tendance
+            fig_scatter_art = px.scatter(
+                artist_scatter_filtered,
+                x="scrobbles",
+                y="unique_tracks",
+                hover_name="artist",
+                title="Tracks per artist (50+ scrobbles)",
+                color_discrete_sequence=["#7cb5ec"]
+            )
+
+        # 4. Style pour imiter Highcharts (Fond blanc, grille grise)
+        fig_scatter_art.update_layout(
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            xaxis=dict(
+                title="Scrobbles (Total écoutes)",
+                showgrid=False, # Pas de grille verticale sur l'image
+                linecolor="#ccc",
+                tickfont=dict(color="#333")
+            ),
+            yaxis=dict(
+                title="Tracks (Titres uniques)",
+                showgrid=True, # Grille horizontale seulement
+                gridcolor="#eee",
+                gridwidth=1,
+                linecolor="#ccc",
+                tickfont=dict(color="#333")
+            ),
+            margin=dict(t=40, l=20, r=20, b=20)
+        )
+
+        # Taille des points
+        fig_scatter_art.update_traces(marker=dict(size=8, line=dict(width=0)))
+
+        st.plotly_chart(fig_scatter_art, use_container_width=True)
         
     # ========== TAB 4: TRACKS ==========
     with tab4:
@@ -480,3 +614,364 @@ def show_page():
         fig_scatter.update_traces(marker=dict(size=3)) # Taille des points
         
         st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        # --- 3. ANALYSE CYCLIQUE CORRIGÉE ---
+        st.subheader("🔄 Cycles d'écoute")
+
+        col1, col2, col3 = st.columns(3)
+        chart_color = "#7cb5ec"
+
+        # --- FONCTION D'AIDE POUR LE STYLE ---
+        def style_polar_chart(fig, max_value):
+            """Applique le style Highcharts et fixe l'échelle pour éviter que ça dépasse"""
+            fig.update_layout(
+                polar=dict(
+                    radialaxis=dict(
+                        visible=False,  # Cache les cercles concentriques
+                        range=[0, max_value * 1.1]  # AJOUTE 10% DE MARGE pour ne pas toucher le bord
+                    ),
+                    angularaxis=dict(
+                        direction="clockwise",
+                        gridcolor="#eee", # Lignes gris clair pour les séparations
+                        linecolor="#eee"
+                    ),
+                    bgcolor="white"
+                ),
+                margin=dict(t=30, b=30, l=20, r=20),
+                height=300,
+                showlegend=False,
+                paper_bgcolor="white",
+            )
+            return fig
+
+        # --- 1. HEURES (0h - 23h) ---
+        with col1:
+            st.markdown("**Scrobbled Hours**")
+            
+            # Préparation des données
+            hours_counts = df["utc_time"].dt.hour.value_counts().reindex(range(24), fill_value=0).reset_index()
+            hours_counts.columns = ["hour_num", "count"]
+            
+            # CRUCIAL : On crée une colonne TEXTE pour l'affichage (0h, 1h...)
+            # Cela force Plotly à bien placer les barres comme des catégories
+            hours_counts["label"] = hours_counts["hour_num"].astype(str) + "h"
+            
+            # Calcul du max pour l'échelle
+            max_h = hours_counts["count"].max()
+
+            fig_hours = px.bar_polar(
+                hours_counts, 
+                r="count", 
+                theta="label", # On utilise le label texte
+                start_angle=90, # 0h en haut (Midi)
+                direction="clockwise",
+                color_discrete_sequence=[chart_color]
+            )
+            
+            # On applique le style avec la marge de sécurité
+            fig_hours = style_polar_chart(fig_hours, max_h)
+            st.plotly_chart(fig_hours, use_container_width=True)
+
+        # --- 2. JOURS (Lundi - Dimanche) ---
+        with col2:
+            st.markdown("**Scrobbled Days**")
+            
+            days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            # Labels courts pour faire propre sur le cercle
+            days_map = {
+                'Monday': 'Mon.', 'Tuesday': 'Tue.', 'Wednesday': 'Wed.', 
+                'Thursday': 'Thu.', 'Friday': 'Fri.', 'Saturday': 'Sat.', 'Sunday': 'Sun.'
+            }
+            
+            days_data = df["utc_time"].dt.day_name().value_counts().reindex(days_order, fill_value=0).reset_index()
+            days_data.columns = ["day_full", "count"]
+            days_data["label"] = days_data["day_full"].map(days_map)
+            
+            max_d = days_data["count"].max()
+
+            fig_days = px.bar_polar(
+                days_data, 
+                r="count", 
+                theta="label",
+                start_angle=90, # Lundi en haut (ou changer selon préférence)
+                direction="clockwise",
+                color_discrete_sequence=[chart_color]
+            )
+            
+            fig_days = style_polar_chart(fig_days, max_d)
+            st.plotly_chart(fig_days, use_container_width=True)
+
+        # --- 3. MOIS (Janvier - Décembre) ---
+        with col3:
+            st.markdown("**Scrobbled Months**")
+            
+            months_order = range(1, 13)
+            months_labels = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.']
+            
+            months_data = df["utc_time"].dt.month.value_counts().reindex(months_order, fill_value=0).reset_index()
+            months_data.columns = ["month_num", "count"]
+            months_data["label"] = months_data["month_num"].apply(lambda x: months_labels[x-1])
+            
+            max_m = months_data["count"].max()
+            
+            fig_months = px.bar_polar(
+                months_data, 
+                r="count", 
+                theta="label",
+                start_angle=90, # Janvier en haut
+                direction="clockwise",
+                color_discrete_sequence=[chart_color]
+            )
+            
+            fig_months = style_polar_chart(fig_months, max_m)
+            st.plotly_chart(fig_months, use_container_width=True)
+    
+    # ========== TAB 5: ALBUMS ==========
+    with tab5:
+        st.header("Analyse des Albums")
+
+        col_top_alb, col_week_alb = st.columns(2)
+
+        with col_top_alb:
+            st.subheader("🥇 Top Albums (Période)")
+            
+            # Filtre temporel spécifique
+            period_options_alb = ["Tout le temps", "Cette année", "6 derniers mois", "Dernier mois"]
+            selected_period_alb = st.selectbox("Période d'analyse", period_options_alb, key="period_alb")
+            
+            # Filtrage des données
+            df_alb = df.copy()
+            now = df["utc_time"].max()
+            
+            if selected_period_alb == "Cette année":
+                df_alb = df_alb[df_alb["utc_time"].dt.year == now.year]
+            elif selected_period_alb == "6 derniers mois":
+                start_date = now - pd.DateOffset(months=6)
+                df_alb = df_alb[df_alb["utc_time"] >= start_date]
+            elif selected_period_alb == "Dernier mois":
+                start_date = now - pd.DateOffset(months=1)
+                df_alb = df_alb[df_alb["utc_time"] >= start_date]
+            
+            # Calcul Top 10
+            # GroupBy Artist + Album pour éviter les doublons de noms d'albums (ex: "Greatest Hits")
+            top_albums = df_alb.groupby(["artist", "album"]).size().reset_index(name="Écoutes")
+            top_albums = top_albums.sort_values("Écoutes", ascending=False).head(10)
+            
+            # Mise en forme
+            top_albums["Album complet"] = top_albums["artist"] + " - " + top_albums["album"]
+            display_top_alb = top_albums[["Album complet", "Écoutes"]].reset_index(drop=True)
+            display_top_alb.index += 1
+            
+            st.dataframe(display_top_alb, use_container_width=True, height=500)
+
+        with col_week_alb:
+            st.subheader("📅 Albums cultes")
+            st.caption("Albums écoutés sur le plus grand nombre de semaines distinctes")
+            
+            # Calcul longévité
+            # On filtre les albums vides ou inconnus si nécessaire
+            df_clean = df[df["album"].notna() & (df["album"] != "")]
+            
+            alb_longevity = df_clean.groupby(["artist", "album"])["week"].nunique().reset_index(name="Semaines actives")
+            alb_longevity = alb_longevity.sort_values("Semaines actives", ascending=False).head(10)
+            
+            # Mise en forme
+            alb_longevity["Album complet"] = alb_longevity["artist"] + " - " + alb_longevity["album"]
+            display_long_alb = alb_longevity[["Album complet", "Semaines actives"]].reset_index(drop=True)
+            display_long_alb.index += 1
+            
+            st.dataframe(display_long_alb, use_container_width=True, height=500)
+            
+        st.divider()
+
+        # --- PARTIE 2 : LE TREEMAP (Artiste > Album) ---
+        st.subheader("🗺️ Cartographie de votre CD-thèque")
+        st.caption("Albums avec au moins 2 titres distincts. La taille représente le volume d'écoutes.")
+
+        # 1. Nettoyage de base
+        df_tree = df[df["album"].notna() & (df["album"] != "")].copy()
+        
+        # 2. CALCUL AVANCÉ : On compte les écoutes ET les pistes uniques par album
+        tree_data = df_tree.groupby(["artist", "album"]).agg(
+            plays=('track', 'count'),       # Total d'écoutes (taille du carré)
+            nb_tracks=('track', 'nunique')  # Nombre de pistes différentes (pour le filtre)
+        ).reset_index()
+        
+        # 3. FILTRE "VRAI ALBUM" : On garde seulement si plus de 1 track unique
+        tree_data = tree_data[tree_data["nb_tracks"] > 1]
+        
+        # 4. FILTRE TOP 50 ARTISTES (Basé sur les albums restants)
+        # On recalcule le top 50 APRES avoir enlevé les singles pour que le classement soit pertinent
+        top_artists_list = tree_data.groupby("artist")["plays"].sum().nlargest(20).index
+        tree_data_final = tree_data[tree_data["artist"].isin(top_artists_list)]
+
+        # Création du Treemap
+        fig_tree = px.treemap(
+            tree_data_final, 
+            path=['artist', 'album'], 
+            values='plays',
+            color='artist', 
+            color_discrete_sequence=px.colors.qualitative.Prism,
+        )
+
+        fig_tree.update_layout(
+            margin=dict(t=20, l=10, r=10, b=10),
+            height=600
+        )
+        
+        # Infobulle améliorée : on affiche aussi le nombre de pistes
+        fig_tree.update_traces(
+            hovertemplate='<b>%{label}</b><br>Écoutes: %{value}<br>Pistes: %{customdata[0]}<extra></extra>',
+            textinfo="label+value",
+            customdata=tree_data_final[['nb_tracks']] # On passe la colonne nb_tracks pour l'infobulle
+        )
+        
+        st.plotly_chart(fig_tree, use_container_width=True)
+        
+        st.divider()
+        st.subheader("💿 Singles vs Albums Entiers")
+        st.caption("Points à droite = Albums explorés en profondeur. Points à gauche = Singles écoutés en boucle.")
+
+        # Calcul : Pour chaque album, nb d'écoutes total ET nb de titres uniques
+        df_integrity = df[df["album"].notna() & (df["album"] != "")]
+        album_stats = df_integrity.groupby(["artist", "album"]).agg(
+            total_plays=('track', 'count'),
+            unique_tracks=('track', 'nunique')
+        ).reset_index()
+
+        # On filtre les "petits" albums pour ne pas polluer le graph (min 20 écoutes)
+        album_stats = album_stats[album_stats["total_plays"] > 20]
+
+        fig_scat_alb = px.scatter(
+            album_stats,
+            x="unique_tracks",
+            y="total_plays",
+            size="total_plays", # La bulle grossit avec les écoutes
+            color="unique_tracks", # Couleur selon la profondeur d'exploration
+            hover_name="album",
+            hover_data=["artist"],
+            color_continuous_scale="Viridis",
+            labels={"unique_tracks": "Nombre de titres différents écoutés", "total_plays": "Écoutes totales"}
+        )
+        
+        fig_scat_alb.update_layout(height=500)
+        st.plotly_chart(fig_scat_alb, use_container_width=True)
+    
+    # ========== TAB 2: BAR CHART RACE ==========
+    with tab2:
+        st.header("🏁 Course aux écoutes (Historique complet)")
+        
+        # Configuration : Seulement le nombre d'artistes en saisie chiffre
+        top_n = st.number_input(
+            "Nombre d'artistes à afficher", 
+            min_value=1, 
+            max_value=20, 
+            value=10, 
+            step=1
+        )
+        
+        # Préparation des données
+        # On s'assure que la conversion de date est faite
+        # (Si elle a été faite par le filtre global, cette ligne est redondante mais sans danger)
+        if not pd.api.types.is_datetime64_any_dtype(df["utc_time"]):
+             df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
+        
+        # === NETTOYAGE DES CARACTÈRES SPÉCIAUX ===
+        def clean_name(name):
+            if pd.isna(name):
+                return name
+            replacements = {
+                '$': 'S',
+                '_': ' ',
+                '^': '',
+                '{': '(',
+                '}': ')',
+                '\\': '',
+                '~': '',
+                '#': '',
+                '%': '',
+                '&': 'and'
+            }
+            cleaned = str(name)
+            for old, new in replacements.items():
+                cleaned = cleaned.replace(old, new)
+            return cleaned
+        
+        df["artist"] = df["artist"].apply(clean_name)
+        
+        # === LOGIQUE INTERNE FORCEE ===
+        # On force le pas de temps au "Mois" pour que l'animation soit fluide
+        # Cela ne filtre pas les données (c'est le filtre en haut de page qui gère ça),
+        # Cela définit juste la vitesse de l'animation.
+        df["period"] = df["utc_time"].dt.to_period("M")
+        
+        # Compter les écoutes par artiste et période
+        artist_plays = (
+            df.groupby(['period', 'artist'])
+            .size()
+            .reset_index(name='plays')
+        )
+        
+        # Créer le tableau pivot
+        pivot_df = artist_plays.pivot(
+            index='period',
+            columns='artist',
+            values='plays'
+        ).fillna(0)
+        
+        # Convertir l'index en datetime pour bar_chart_race
+        pivot_df.index = pivot_df.index.to_timestamp()
+        
+        # Calculer le cumul (Course au total)
+        cumulative_df = pivot_df.cumsum()
+        
+        # Générer la vidéo
+        # Cache key simplifiée (plus de variable 'period')
+        cache_key = f"{st.session_state.utilisateur_selectionne}_race_{top_n}_{len(df)}"
+
+        if 'video_cache' not in st.session_state:
+            st.session_state.video_cache = {}
+        
+        if cache_key not in st.session_state.video_cache:
+            with st.spinner("⏳ Génération de l'animation... (Patience, c'est du lourd !)"):
+                try:
+                    # Si le dataframe est trop petit (ex: filtre sur 2 jours), on évite le crash
+                    if len(cumulative_df) < 2:
+                        st.warning("Pas assez de périodes temporelles pour générer une animation. Sélectionnez une plage de dates plus large.")
+                        video = None
+                    else:
+                        html_str = bcr.bar_chart_race(
+                            df=cumulative_df,
+                            filename=None,
+                            n_bars=int(top_n), # Conversion int explicite
+                            sort='desc',
+                            title='Évolution du Top Artistes (Cumulé)',
+                            period_length=1000, # Vitesse (ms par période)
+                            steps_per_period=10, # Fluidité
+                            figsize=(6, 3.5),
+                            cmap='tab20',
+                            bar_label_size=10,
+                            tick_label_size=10,
+                            period_label={'x': .98, 'y': .3, 'ha': 'right', 'va': 'center'},
+                            period_fmt='%B %Y', # Format mois
+                            filter_column_colors=True
+                        ).data
+                        
+                        # Extraire la vidéo
+                        start = html_str.find('base64,') + len('base64,')
+                        end = html_str.find('">')
+                        video = base64.b64decode(html_str[start:end])
+                        
+                        # Cache
+                        st.session_state.video_cache[cache_key] = video
+                        st.success("✅ Animation prête !")
+                    
+                except Exception as e:
+                    st.error(f"❌ Erreur technique : {str(e)}")
+                    video = None
+        else:
+            video = st.session_state.video_cache[cache_key]
+        
+        # Afficher la vidéo
+        if video:
+            st.video(video)
