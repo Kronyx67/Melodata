@@ -22,33 +22,32 @@ def show_page():
     max_glob = df["utc_time"].max().date()
     
     # ====================================================================
-    # ÉTAPE 2 : INITIALISER LE STATE (CRÉATION DES VARIABLES)
-    # C'est impératif de le faire AVANT de tenter de les lire ou de les corriger
+    # 🧠 GESTION INTELLIGENTE DE LA MÉMOIRE (STATE)
+    # On fait tout ici en une seule fois pour éviter les conflits
     # ====================================================================
-    if 'date_start' not in st.session_state:
+
+    # A. Initialisation des clés si elles manquent
+    if 'date_start' not in st.session_state: st.session_state.date_start = min_glob
+    if 'date_end' not in st.session_state: st.session_state.date_end = max_glob
+    if 'current_user_viewed' not in st.session_state: st.session_state.current_user_viewed = None
+
+    # B. RESET : Si on a changé d'utilisateur -> On remet tout à zéro
+    if st.session_state.current_user_viewed != st.session_state.utilisateur_selectionne:
         st.session_state.date_start = min_glob
-        
-    if 'date_end' not in st.session_state:
         st.session_state.date_end = max_glob
-
-    # --- INITIALISATION DU STATE (Mémoire) ---
-    # 1. On corrige la date de début si elle est hors limites
-    if st.session_state.date_start < min_glob:
-        st.session_state.date_start = min_glob
-    elif st.session_state.date_start > max_glob:
-        st.session_state.date_start = min_glob # Reset au début si incohérent
-
-    # 2. On corrige la date de fin si elle dépasse la date max du fichier
-    if st.session_state.date_end > max_glob:
-        st.session_state.date_end = max_glob
-    elif st.session_state.date_end < min_glob:
-        st.session_state.date_end = max_glob
-
-    # 3. Sécurité finale : si Start > End, on réinitialise tout
+        # On peut aussi reset les selectbox si besoin, mais le plus important c'est les dates
+        st.session_state.current_user_viewed = st.session_state.utilisateur_selectionne
+    
+    # C. CLAMPING (SÉCURITÉ ANTI-CRASH)
+    # On s'assure impérativement que les dates en mémoire sont valides pour CE fichier
+    # Sinon st.date_input plantera.
+    st.session_state.date_start = max(min_glob, min(st.session_state.date_start, max_glob))
+    st.session_state.date_end = min(max_glob, max(st.session_state.date_end, min_glob))
+    
+    # D. COHÉRENCE (Début <= Fin)
     if st.session_state.date_start > st.session_state.date_end:
         st.session_state.date_start = min_glob
         st.session_state.date_end = max_glob
-
     # --- FONCTIONS DE CALLBACK (Ce qui se passe quand on change une option) ---
     
     def update_from_preset():
