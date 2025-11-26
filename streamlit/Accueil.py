@@ -6,7 +6,10 @@ import pandas as pd
 def show_page():
     st.title("🎶 Melodata 🎶")
     fichiers = os.listdir("./data")
-    fichiers = [f for f in fichiers if os.path.isfile(os.path.join("./data", f))]
+    fichiers = [
+        f for f in os.listdir("./data")
+        if f.endswith(".csv") and os.path.isfile(os.path.join("./data", f))
+    ]
     utilisateurs = [f.replace(".csv", "") for f in fichiers]
 
     if "utilisateur_selectionne" not in st.session_state:

@@ -145,7 +145,7 @@ def show_page():
     st.divider()
     
     # --- Tabs principales ---
-    tab1, tab2 , tab3, tab4, tab5= st.tabs(["📊 Heatmap", "🏁 Bar Chart Race","🏆 Artistes","🎵 Meloz", "💿 Albums"])
+    tab1, tab3, tab5, tab4, tab2= st.tabs(["📊 Heatmap","🏆 Artistes","💿 Albums", "🎵 Meloz", "🏁 Bar Chart Race"])
     
     # ========== TAB 1: HEATMAP ==========
     with tab1:
@@ -404,49 +404,60 @@ def show_page():
 
         with head_col1:
             st.markdown("### 🗓️ Artiste favori par mois")
-            # On ne met rien d'autre ici
 
         with head_col2:
             st.markdown("### 🎵 Top Tracks par Artiste")
-            # Liste des artistes
-            liste_artistes = sorted(df["artist"].dropna().unique())
-            # Le selectbox est ici, au-dessus du futur tableau
-            artist_selected = st.selectbox("Choisir un artiste", liste_artistes, label_visibility="collapsed")
-            # Note: label_visibility="collapsed" cache le label "Choisir un artiste" pour gagner de la place si le titre suffit
+            
+            # --- FILTRAGE : On garde seulement les artistes > 10 écoutes ---
+            # 1. On compte les occurrences dans le DataFrame filtré actuel
+            artist_counts = df["artist"].value_counts()
+            
+            # 2. On garde ceux qui sont au-dessus de 10
+            valid_artists = artist_counts[artist_counts > 10].index.tolist()
+            liste_artistes = sorted(valid_artists)
+            
+            # 3. Affichage du selectbox
+            if not liste_artistes:
+                st.warning("Aucun artiste avec plus de 10 écoutes sur cette période.")
+                artist_selected = None
+            else:
+                artist_selected = st.selectbox(
+                    "Choisir un artiste (+10 écoutes min.)", 
+                    liste_artistes, 
+                    label_visibility="collapsed"
+                )
 
         # 2. ZONE DES DONNÉES (Deuxième ligne de colonnes)
-        # Comme c'est une nouvelle rangée de colonnes, elle commencera 
-        # sous l'élément le plus bas de la rangée précédente.
         data_col1, data_col2 = st.columns(2)
 
         with data_col1:
             # --- Calcul pour la gauche ---
             monthly_stats = df.groupby(["month_str", "artist"]).size().reset_index(name="plays")
             
-            # Trouver le top 1
-            idx = monthly_stats.groupby("month_str")["plays"].idxmax()
-            top_month = monthly_stats.loc[idx]
-            
-            # Tri par date décroissante (le plus récent en haut)
-            top_month = top_month.sort_values("month_str", ascending=False)
-            
-            # === MODIFICATION ICI ===
-            # On convertit la chaîne 'YYYY-MM' en objet Date pour la reformater en 'Month Year' (ex: November 2023)
-            # %B = Mois complet (January), %Y = Année (2023)
-            top_month["formatted_date"] = pd.to_datetime(top_month["month_str"]).dt.strftime('%B %Y')
-            
-            # On sélectionne les colonnes dans l'ordre voulu et on renomme
-            top_month_display = top_month[["formatted_date", "artist", "plays"]].rename(
-                columns={"formatted_date": "Mois", "artist": "Artiste Top 1", "plays": "Écoutes"}
-            )
-            
-            # Affichage
-            st.dataframe(
-                top_month_display, 
-                use_container_width=True, 
-                hide_index=True,
-                height=400
-            )
+            if not monthly_stats.empty:
+                # Trouver le top 1
+                idx = monthly_stats.groupby("month_str")["plays"].idxmax()
+                top_month = monthly_stats.loc[idx]
+                
+                # Tri par date décroissante
+                top_month = top_month.sort_values("month_str", ascending=False)
+                
+                # Formatage de la date (Novembre 2023...)
+                top_month["formatted_date"] = pd.to_datetime(top_month["month_str"]).dt.strftime('%B %Y')
+                
+                # Sélection et renommage
+                top_month_display = top_month[["formatted_date", "artist", "plays"]].rename(
+                    columns={"formatted_date": "Mois", "artist": "Artiste Top 1", "plays": "Écoutes"}
+                )
+                
+                st.dataframe(
+                    top_month_display, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    height=400
+                )
+            else:
+                st.info("Pas assez de données pour afficher les favoris mensuels.")
 
         with data_col2:
             # --- Calcul pour la droite ---
@@ -455,7 +466,6 @@ def show_page():
                 top_tracks.columns = ["Titre", "Écoutes"]
                 top_tracks.index = top_tracks.index + 1
                 
-                # Affichage
                 st.dataframe(
                     top_tracks, 
                     use_container_width=True,
@@ -872,15 +882,6 @@ def show_page():
     with tab2:
         st.header("🏁 Course aux écoutes (Historique complet)")
         
-        # Configuration : Seulement le nombre d'artistes en saisie chiffre
-        top_n = st.number_input(
-            "Nombre d'artistes à afficher", 
-            min_value=1, 
-            max_value=20, 
-            value=10, 
-            step=1
-        )
-        
         # Préparation des données
         # On s'assure que la conversion de date est faite
         # (Si elle a été faite par le filtre global, cette ligne est redondante mais sans danger)
@@ -938,7 +939,7 @@ def show_page():
         
         # Générer la vidéo
         # Cache key simplifiée (plus de variable 'period')
-        cache_key = f"{st.session_state.utilisateur_selectionne}_race_{top_n}_{len(df)}"
+        cache_key = f"{st.session_state.utilisateur_selectionne}_race_10_{len(df)}"
 
         if 'video_cache' not in st.session_state:
             st.session_state.video_cache = {}
@@ -954,11 +955,11 @@ def show_page():
                         html_str = bcr.bar_chart_race(
                             df=cumulative_df,
                             filename=None,
-                            n_bars=int(top_n), # Conversion int explicite
+                            n_bars=int(10), # Conversion int explicite
                             sort='desc',
                             title='Évolution du Top Artistes (Cumulé)',
-                            period_length=1000, # Vitesse (ms par période)
-                            steps_per_period=10, # Fluidité
+                            period_length=1500, # Vitesse (ms par période)
+                            steps_per_period=15, # Fluidité
                             figsize=(6, 3.5),
                             cmap='tab20',
                             bar_label_size=10,
