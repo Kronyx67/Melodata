@@ -5,6 +5,7 @@ import pandas as pd
 from functions.Duo import get_top_artists, get_cumulative_unique_artists_plot, get_top_artists_treemap
 from functions.Duo import get_top_albums
 from functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
+from functions.Duo import display_album_comparison
 import numpy as np
 
 def show_page():
@@ -212,6 +213,14 @@ def show_page():
             top_albums = get_top_albums(df)
             st.subheader("Top 5 des albums les plus écoutés en commun")
             st.dataframe(top_albums)
+            
+            st.divider()
+    
+            # 2. Appel de la nouvelle fonction graphique
+            display_album_comparison(df)
+            
+            
+            
 
         with tab4:
             col1, col2 = st.columns(2)

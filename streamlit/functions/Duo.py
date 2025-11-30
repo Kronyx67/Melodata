@@ -320,3 +320,158 @@ def get_top_artists_treemap(df):
     )
 
     return fig
+
+def display_album_comparison(df, max_user_share=0.8):
+    """
+    Affiche les graphiques de comparaison d'albums pour 2 utilisateurs.
+    Filtres appliqués :
+    1. Albums avec au moins 2 titres différents (pas de singles).
+    2. Intersection stricte (écouté par les deux).
+    3. Équilibre des écoutes (max_user_share) : Personne ne doit "posséder" l'album à plus de 80%.
+    """
+    
+    # Vérification : on a besoin de 2 utilisateurs
+    users = df['user'].unique()
+    if len(users) != 2:
+        st.warning("⚠️ Please select exactly 2 users to compare albums.")
+        return
+
+    user1, user2 = users[0], users[1]
+    
+    # --- 1. PRÉPARATION DES DONNÉES ---
+    
+    # A. Filtre "Vrais Albums" (Au moins 2 titres différents)
+    alb_track_counts = df.groupby('album')['track'].nunique()
+    valid_albs_indices = alb_track_counts[alb_track_counts >= 2].index
+    
+    df_duo = df[df['album'].isin(valid_albs_indices)].copy()
+
+    # B. Pivot : Matrice [Album x User]
+    pivot_albums = df_duo.groupby(['album', 'artist', 'user']).size().unstack(fill_value=0).reset_index()
+    
+    # Sécurité colonnes
+    if user1 not in pivot_albums.columns: pivot_albums[user1] = 0
+    if user2 not in pivot_albums.columns: pivot_albums[user2] = 0
+
+    # C. FILTRE INTERSECTION STRICTE
+    # On ne garde que si les deux ont écouté au moins une fois
+    pivot_albums = pivot_albums[
+        (pivot_albums[user1] > 0) & 
+        (pivot_albums[user2] > 0)
+    ]
+
+    # D. Calcul du Total
+    pivot_albums['total'] = pivot_albums[user1] + pivot_albums[user2]
+    
+    # E. FILTRE DE PARTAGE (max_user_share)
+    # On vérifie que personne n'a plus de X% des écoutes totales
+    # Ex: Si User1=90 et User2=10 (Total 100), Share1 = 0.9. Si max=0.8, on exclut.
+    pivot_albums['share_u1'] = pivot_albums[user1] / pivot_albums['total']
+    pivot_albums['share_u2'] = pivot_albums[user2] / pivot_albums['total']
+    
+    pivot_albums = pivot_albums[
+        (pivot_albums['share_u1'] <= max_user_share) & 
+        (pivot_albums['share_u2'] <= max_user_share)
+    ]
+    
+    if pivot_albums.empty:
+        st.info(f"No truly shared albums found (where both users contribute > {int((1-max_user_share)*100)}%).")
+        return
+
+    # --- 2. GRAPHIQUE 1 : SCATTER PLOT (Common Ground) ---
+    st.subheader("🗺️ Common Ground Landscape")
+    st.caption(f"Strictly shared albums (Balance < {int(max_user_share*100)}%), diagonal = Perfect match.")
+
+    # On utilise share_u2 comme ratio pour la couleur (0=User1 dominant, 1=User2 dominant)
+    # Puisqu'on a filtré, le ratio sera forcément entre 0.2 et 0.8 (pour max=0.8)
+    
+    fig_scatter = px.scatter(
+        pivot_albums,
+        x=user1,
+        y=user2,
+        hover_name="album",
+        hover_data={"artist": True, "total": True, "share_u1": False, "share_u2": False},
+        color="share_u2",
+        color_continuous_scale="RdBu", # Rouge (User1) <-> Bleu (User2)
+        size="total", 
+        size_max=40,
+        title=f"Shared Albums: {user1} vs {user2}"
+    )
+
+    # Ligne diagonale
+    max_val = pivot_albums[['total']].max().max()
+    fig_scatter.add_shape(
+        type="line", line=dict(dash="dash", color="gray", width=1),
+        x0=0, y0=0, x1=max_val, y1=max_val
+    )
+
+    fig_scatter.update_layout(
+        xaxis_title=f"{user1} Plays",
+        yaxis_title=f"{user2} Plays",
+        coloraxis_showscale=False,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=500
+    )
+    
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    st.divider()
+
+    # --- 3. GRAPHIQUE 2 : TUG OF WAR (Top Shared Albums) ---
+    st.subheader(f"⚔️ Tug of War (Top Shared)")
+    st.caption(
+            "This chart compares the listening volume of your two top users on the most shared albums, "
+            "bars to the left show plays for one user, bars to the right show plays for the other, "
+            "highlighting who dominates each album."
+        )
+
+    # On prend les 15 plus gros albums communs restants après filtrage
+    top_shared = pivot_albums.sort_values('total', ascending=False).head(15)
+    top_shared = top_shared.iloc[::-1]
+    
+    fig_tug = go.Figure()
+
+    # Barres User 1 (Vers la gauche)
+    fig_tug.add_trace(go.Bar(
+        y=top_shared["album"] + " - " + top_shared["artist"],
+        x=-top_shared[user1], 
+        name=user1,
+        orientation='h',
+        marker_color='#FF4B4B',
+        customdata=top_shared[user1],
+        hovertemplate=f"<b>{user1}</b>: %{{customdata}} plays<extra></extra>"
+    ))
+
+    # Barres User 2 (Vers la droite)
+    fig_tug.add_trace(go.Bar(
+        y=top_shared["album"] + " - " + top_shared["artist"],
+        x=top_shared[user2],
+        name=user2,
+        orientation='h',
+        marker_color='#4B4BFF',
+        hovertemplate=f"<b>{user2}</b>: %{{x}} plays<extra></extra>"
+    ))
+
+    # Bornes dynamiques
+    max_x = max(top_shared[user1].max(), top_shared[user2].max()) * 1.1
+
+    fig_tug.update_layout(
+        barmode='overlay',
+        title="Listening Balance",
+        xaxis=dict(
+            title="Volume of plays",
+            range=[-max_x, max_x],
+            tickmode='array',
+            tickvals=[-100, -50, 0, 50, 100], 
+            ticktext=['100', '50', '0', '50', '100'],
+            showgrid=False
+        ),
+        yaxis=dict(showgrid=False),
+        plot_bgcolor='white',
+        paper_bgcolor="white",
+        legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+        height=600
+    )
+    
+    st.plotly_chart(fig_tug, use_container_width=True)
