@@ -5,6 +5,7 @@ import pandas as pd
 from functions.Duo import get_top_artists, get_cumulative_unique_artists_plot, get_top_artists_treemap
 from functions.Duo import get_top_albums
 from functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
+import numpy as np
 
 def show_page():
     st.title("Duo Page")
@@ -46,88 +47,144 @@ def show_page():
         tab1, tab2, tab3, tab4 = st.tabs(["Activity", "Artists", "Albums", "Tracks"])
 
         with tab1:
-                # --- Convertir la colonne de temps ---
-                df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
-
-                # --- Colonnes utiles ---
-                df["date"] = df["utc_time"].dt.date
-                df["year"] = df["utc_time"].dt.year
-                df["hour"] = df["utc_time"].dt.hour
-                df["weekday"] = df["utc_time"].dt.day_name()
-                df["week"] = df["utc_time"].dt.isocalendar().week
+            st.header("Weekly Duo Comparison")
             
-                # --- Sélecteur d'année ---
-                annees_disponibles = sorted(df["year"].unique())
-                year_selected = st.selectbox("Année à analyser", annees_disponibles)
+            # --- Convertir la colonne de temps ---
+            df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
 
-                # Filtrer l'année sélectionnée
-                df_year = df[df["year"] == year_selected]
+            # --- Colonnes utiles ---
+            df["year"] = df["utc_time"].dt.year
+            df["weekday"] = df["utc_time"].dt.day_name()
+            df["week"] = df["utc_time"].dt.isocalendar().week
+        
+            # --- Sélecteur d'année ---
+            annees_disponibles = sorted(df["year"].unique())
+            year_selected = st.selectbox("Select Year", annees_disponibles)
 
-                jours_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            # Filtrer l'année sélectionnée
+            df_year = df[df["year"] == year_selected]
 
-                # 1. Regrouper par semaine / jour / utilisateur
-                comp = (
-                    df_year.groupby(["week", "weekday", "user"])
-                        .size()
-                        .reset_index(name="plays")
+            jours_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            
+            # Variables pour les noms (plus court à écrire)
+            u1 = st.session_state.utilisateur_selectionne
+            u2 = st.session_state.user_duo
+
+            # 1. Regrouper par semaine / jour / utilisateur
+            comp = (
+                df_year.groupby(["week", "weekday", "user"])
+                    .size()
+                    .reset_index(name="plays")
+            )
+
+            # 2. Pivot table → weekday × week × user
+            pivot = comp.pivot_table(
+                index=["weekday", "week"],
+                columns="user",
+                values="plays",
+                fill_value=0
+            ).reset_index()
+
+            # --- SÉCURITÉ : Si un user n'a rien écouté, sa colonne manque ---
+            if u1 not in pivot.columns: pivot[u1] = 0
+            if u2 not in pivot.columns: pivot[u2] = 0
+
+            # 3. NOUVELLE LOGIQUE (Pour avoir les blancs)
+            def calculate_score(row):
+                val1 = row[u1]
+                val2 = row[u2]
+                
+                # Si personne n'a écouté : NaN (Blanc)
+                if val1 == 0 and val2 == 0:
+                    return np.nan
+                # Si User 1 > User 2 : 1 (Vert)
+                elif val1 > val2:
+                    return 1
+                # Si User 2 > User 1 : 0 (Bleu)
+                elif val2 > val1:
+                    return 0
+                # Égalité active : 0.5 (Gris)
+                else:
+                    return 0.5
+
+            pivot["score"] = pivot.apply(calculate_score, axis=1)
+
+            # 4. Matrice pour la heatmap
+            matrix_compare = pivot.pivot(
+                index="weekday",
+                columns="week",
+                values="score"
+            ).reindex(jours_order)
+
+            # --- LÉGENDE PERSONNALISÉE ---
+            st.markdown(f"""
+            <div style="display: flex; gap: 20px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 15px; height: 15px; background-color: #76F4BD; margin-right: 5px; border-radius: 3px;"></div>
+                    <span><b>{u1}</b></span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 15px; height: 15px; background-color: #8796F5; margin-right: 5px; border-radius: 3px;"></div>
+                    <span><b>{u2}</b></span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 15px; height: 15px; background-color: grey; margin-right: 5px; border-radius: 3px;"></div>
+                    <span>Tie</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 15px; height: 15px; background-color: white; border: 1px solid #ddd; margin-right: 5px; border-radius: 3px;"></div>
+                    <span>No data</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --- Labels axes ---
+            semaines = [f"W{w}" for w in matrix_compare.columns]
+            jours = matrix_compare.index.tolist()
+
+            fig = go.Figure(go.Heatmap(
+                z=matrix_compare,
+                x=semaines,
+                y=jours,
+                # 0=Bleu, 0.5=Gris, 1=Vert. Les NaN seront transparents (blancs)
+                colorscale=[
+                    [0.0, "#8796F5"], 
+                    [0.49, "#8796F5"],
+                    [0.5, "grey"], 
+                    [0.51, "grey"],
+                    [1.0, "#76F4BD"]
+                ],
+                showscale=False,
+                xgap=1, # Espace entre les cases
+                ygap=1
+            ))
+
+            fig.update_traces(
+                hovertemplate="Week: %{x}<br>Day: %{y}<extra></extra>"
+            )
+
+            fig.update_layout(
+                title=f"Activity Map — {year_selected}",
+                xaxis_title=None, # Plus propre sans titre "Semaine"
+                yaxis_title=None,
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                margin=dict(t=40, l=40, b=40, r=20),
+                # AXE Y : Lundi en haut
+                yaxis=dict(
+                    autorange="reversed",
+                    showgrid=False,
+                    zeroline=False
+                ),
+                # AXE X : Semaines en bas
+                xaxis=dict(
+                    side="bottom",
+                    showgrid=False,
+                    zeroline=False
                 )
+            )
 
-                # 2. Pivot table → weekday × week × user
-                pivot = comp.pivot_table(
-                    index=["weekday", "week"],
-                    columns="user",
-                    values="plays",
-                    fill_value=0
-                ).reset_index()
-
-                # 3. Calcul de qui a le plus écouté
-                pivot["compare"] = (
-                    pivot[st.session_state.utilisateur_selectionne] -
-                    pivot[st.session_state.user_duo]
-                )
-
-                # -1 : Gautier gagne / 0 : égalité / +1 : Justin gagne
-                pivot["compare_flag"] = pivot["compare"].apply(lambda x:
-                    1 if x > 0 else (-1 if x < 0 else 0)
-                )
-
-                # 4. Matrice pour la heatmap
-                matrix_compare = pivot.pivot(
-                    index="weekday",
-                    columns="week",
-                    values="compare_flag"
-                ).reindex(jours_order)
-
-                # 5. Remap des valeurs en [0,1] pour Plotly
-                matrix_plot = (matrix_compare + 1) / 2
-
-                # --- Labels axes ---
-                semaines = [f"W{w}" for w in matrix_compare.columns]
-                jours = matrix_compare.index.tolist()
-
-                fig = go.Figure(go.Heatmap(
-                    z=matrix_plot,
-                    x=semaines,
-                    y=jours,
-                    colorscale=[[0, "#8796F5"], [0.5, "grey"], [1, "#76F4BD"]],
-                    showscale=False  
-                ))
-
-                fig.update_traces(
-                    hovertemplate="%{y}, %{x}<extra></extra>"
-                )
-
-                fig.update_layout(
-                    title=f"Comparaison entre 🟢{st.session_state.utilisateur_selectionne} et 🔵{st.session_state.user_duo} — Année {year_selected}",
-                    xaxis_title="Semaine",
-                    yaxis_title="Jour de la semaine",
-                    plot_bgcolor='white',
-                    paper_bgcolor='white',
-                    margin=dict(t=120)
-                )
-
-                st.title("Duo Activity Comparison")
-                st.plotly_chart(fig)
+            st.plotly_chart(fig, use_container_width=True)
         
         with tab2:
             col1, col2 = st.columns(2)
