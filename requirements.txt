@@ -6,3 +6,4 @@ requests
 os
 bar_chart_race
 statsmodels
+ffmpeg

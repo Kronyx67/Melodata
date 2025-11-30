@@ -27,20 +27,19 @@ def get_top_artists(df, max_user_share=0.8):
     # Préparer un DataFrame pour le Top 5 avec les proportions
     top_artists = artist_counts.head(5).reset_index()
     top_artists.index = top_artists.index + 1  
-    top_artists.columns = ['Artiste', 'Total écoutes']
+    top_artists.columns = ['Artist', 'Total Meloz']
 
-    top_artists[f"% des écoutes de {user1}"] = 0.0
+    top_artists[f"% of {user1}'s Meloz"] = 0.0
 
     # Calculer le total d'écoutes de user1
     total_user1 = df[df['user'] == user1].shape[0]
 
     for i, row in top_artists.iterrows():
-        artist = row['Artiste']
-        total = row['Total écoutes']
+        artist = row['Artist']
+        total = row['Total Meloz']
         count_user1 = user_artist_counts.loc[artist, user1]
         count_user2 = user_artist_counts.loc[artist, user2]
-        top_artists.at[i, f"% des écoutes de {user1}"] = f"{int((count_user1 / total) * 100)}%"
-
+        top_artists.at[i, f"% of {user1}'s Meloz"] = f"{int((count_user1 / total) * 100)}%"
     return top_artists
 
 def get_top_albums(df, max_user_share=0.8):
@@ -74,27 +73,26 @@ def get_top_albums(df, max_user_share=0.8):
     # Préparer un DataFrame pour le Top 5 avec les proportions
     top_albums = album_counts.head(5).reset_index()
     top_albums.index = top_albums.index + 1
-    top_albums.columns = ['Album', 'Total écoutes']
+    top_albums.columns = ['Album', 'Total Meloz']
 
     # Ajouter la colonne pour l'artiste associé à chaque album
-    top_albums['Artiste'] = top_albums['Album'].apply(
+    top_albums['Artist'] = top_albums['Album'].apply(
         lambda album: filtered_df[filtered_df['album'] == album]['artist'].iloc[0]
     )
 
     # Réorganiser les colonnes
-    top_albums = top_albums[['Album', 'Artiste', 'Total écoutes']]
+    top_albums = top_albums[['Album', 'Artist', 'Total Meloz']]
 
     # Ajouter la colonne pour le pourcentage d'écoutes de user1
-    top_albums[f"% des écoutes de {user1}"] = 0.0
+    top_albums[f"% of {user1}'s Meloz"] = 0.0
 
     for i, row in top_albums.iterrows():
         album = row['Album']
-        total = row['Total écoutes']
+        total = row['Total Meloz']
         count_user1 = user_album_counts.loc[album, user1]
 
         # Calculer le pourcentage
-        top_albums.at[i, f"% des écoutes de {user1}"] = f"{int((count_user1 / total) * 100)}%"
-
+        top_albums.at[i, f"% of {user1}'s Meloz"] = f"{int((count_user1 / total) * 100)}%"
     return top_albums
 
 def get_top_tracks(df, max_user_share=0.8, top_n=5):
@@ -132,9 +130,9 @@ def get_top_tracks(df, max_user_share=0.8, top_n=5):
 
         rows.append({
             "Track": track,
-            "Artiste": artist,
-            "Total écoutes": int(total),
-            f"% {user1}": f"{int((c1 / total) * 100)}%"
+            "Artist": artist,
+            "Total Meloz": int(total),
+            f"% of {user1}'s Meloz": f"{int((c1 / total) * 100)}%"
         })
 
     result = pd.DataFrame(rows)
@@ -171,15 +169,15 @@ def get_cumulative_unique_artists_plot(df):
                 y=user_data['cumulative_unique_artists'],
                 mode='lines+markers',
                 name=user,
-                hovertemplate=f"%{{x|%d %b %Y}}<br>Total artistes uniques: %{{y}}<extra></extra>"
+                hovertemplate=f"%{{x|%d %b %Y}}<br>Total unique artists: %{{y}}<extra></extra>"
             )
         )
 
     # Mise en forme
     fig.update_layout(
-        title="Évolution du nombre cumulé d'artistes uniques écoutés par utilisateur",
+        title="Unique Artists Listened Over Time by User",
         xaxis_title="Date",
-        yaxis_title="Nombre cumulé d'artistes uniques",
+        yaxis_title="Cumulative Number of Unique Artists",
         hovermode="x unified",
         template="plotly_white"
     )
@@ -243,9 +241,9 @@ def get_total_and_unique_tracks_plot(df):
                 x=user_data['date'],
                 y=user_data['cumulative_total_listens'],
                 mode="lines",
-                name=f"{user} - Total écoutes",
+                name=f"{user} - Total Meloz",
                 line=dict(color=base_colors[i], width=2),
-                hovertemplate="%{x|%d %b %Y}<br>Total écoutes: %{y}<extra></extra>",
+                hovertemplate="%{x|%d %b %Y}<br>Total Meloz: %{y}<extra></extra>",
                 yaxis="y1"
             )
         )
@@ -256,23 +254,23 @@ def get_total_and_unique_tracks_plot(df):
                 x=user_data['date'],
                 y=user_data['cumulative_unique_tracks'],
                 mode="lines",
-                name=f"{user} - Tracks uniques",
+                name=f"{user} - Unique Tracks",
                 line=dict(color=base_colors[i], width=2, dash="dash"),
-                hovertemplate="%{x|%d %b %Y}<br>Tracks uniques: %{y}<extra></extra>",
+                hovertemplate="%{x|%d %b %Y}<br>Unique Tracks: %{y}<extra></extra>",
                 yaxis="y2"
             )
         )
 
     # --- 5) Mise en forme ---
     fig.update_layout(
-        title="Évolution des écoutes totales vs tracks uniques par utilisateur",
+        title="Evolution of Total Listens and Unique Tracks Over Time",
         xaxis_title="Date",
         yaxis=dict(
-            title="Total écoutes",
+            title="Total Meloz",
             side="left"
         ),
         yaxis2=dict(
-            title="Tracks uniques",
+            title="Unique Tracks",
             overlaying="y",
             side="right"
         ),
@@ -300,7 +298,7 @@ def get_top_artists_treemap(df):
         top_artists,
         path=['user', 'artist'],
         values='counts',
-        title="Top 10 des artistes les plus écoutés par utilisateur",
+        title="Top 10 Most Played Artists by User",
         color='counts',
         color_continuous_scale='Viridis',
     )
@@ -406,8 +404,8 @@ def display_album_comparison(df, max_user_share=0.8):
     )
 
     fig_scatter.update_layout(
-        xaxis_title=f"{user1} Plays",
-        yaxis_title=f"{user2} Plays",
+        xaxis_title=f"{user1} Meloz",
+        yaxis_title=f"{user2} Meloz",
         coloraxis_showscale=False,
         plot_bgcolor="white",
         paper_bgcolor="white",
@@ -440,7 +438,7 @@ def display_album_comparison(df, max_user_share=0.8):
         orientation='h',
         marker_color='#FF4B4B',
         customdata=top_shared[user1],
-        hovertemplate=f"<b>{user1}</b>: %{{customdata}} plays<extra></extra>"
+        hovertemplate=f"<b>{user1}</b>: %{{customdata}} meloz<extra></extra>"
     ))
 
     # Barres User 2 (Vers la droite)
@@ -450,7 +448,7 @@ def display_album_comparison(df, max_user_share=0.8):
         name=user2,
         orientation='h',
         marker_color='#4B4BFF',
-        hovertemplate=f"<b>{user2}</b>: %{{x}} plays<extra></extra>"
+        hovertemplate=f"<b>{user2}</b>: %{{x}} meloz<extra></extra>"
     ))
 
     # Bornes dynamiques
@@ -460,7 +458,7 @@ def display_album_comparison(df, max_user_share=0.8):
         barmode='overlay',
         title="Listening Balance",
         xaxis=dict(
-            title="Volume of plays",
+            title="Volume of Meloz",
             range=[-max_x, max_x],
             tickmode='array',
             tickvals=[-100, -50, 0, 50, 100], 

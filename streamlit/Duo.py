@@ -191,12 +191,11 @@ def show_page():
             col1, col2 = st.columns(2)
             with col1:
                 st.write("""
-                Ce tableau affiche les 5 artistes les plus écoutés en commun,
-                avec la condition qu'un seul utilisateur ne représente pas plus de 80% des écoutes d'un artiste.
+                This table displays the 5 most commonly listened to artists,with the condition that a single user does not account for more than 80% of an artist's plays.
                 """)
 
                 top_artists = get_top_artists(df)
-                st.subheader("Top 5 des artistes")
+                st.subheader("Common Artists - Top 5")
                 st.dataframe(top_artists)
 
             with col2:
@@ -211,7 +210,7 @@ def show_page():
 
         with tab3:
             top_albums = get_top_albums(df)
-            st.subheader("Top 5 des albums les plus écoutés en commun")
+            st.subheader("Common Albums - Top 5")
             st.dataframe(top_albums)
             
             st.divider()
@@ -227,7 +226,7 @@ def show_page():
 
             with col1:
                 top_tracks = get_top_tracks(df)
-                st.subheader("Top 5 des titres les plus écoutés en commun")
+                st.subheader("Common Tracks - Top 5")
                 st.dataframe(top_tracks)
 
             with col2:

@@ -5,6 +5,7 @@ import csv
 import time
 from pprint import pprint
 import streamlit as st
+from functions.cache_utils import load_csv_file, load_file_with_cache
 
 api_key = "ea311d73665c24b237160f90bcb986ff"
 
@@ -14,15 +15,25 @@ def update_data(username, progress_callback=None):
     progress_callback(percent) sera appelé à chaque page si fourni.
     """
     if username is None:
-        return "Aucun utilisateur sélectionné"
+        return "No user selected"
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     melodata_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))), "Melodata")
     data_dir = os.path.join(melodata_dir, "data")
     data_temp_dir = os.path.join(melodata_dir, "streamlit", "functions", "data_temp")
 
-    df = pd.read_csv(os.path.join(data_dir, f"{username}.csv"))
-    max_timestamp = df['uts'].max() + 1
+    if not os.path.exists(os.path.join(data_dir, f"{username}.csv")):
+        user_file = os.path.join(data_dir, f"{username}.csv")
+        with open(user_file, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            # Colonnes obligatoires pour le reste du code
+            writer.writerow(["uts", "utc_time", "artist", "artist_mbid",
+                             "album", "album_mbid", "track", "track_mbid"])
+        max_timestamp = 0
+    
+    else: 
+        df = pd.read_csv(os.path.join(data_dir, f"{username}.csv"))
+        max_timestamp = df['uts'].max() + 1
 
     # Nombre total de tracks
     url_info = f"http://ws.audioscrobbler.com/2.0/?method=user.getInfo&user={username}&api_key={api_key}&format=json"
@@ -30,8 +41,12 @@ def update_data(username, progress_callback=None):
     if response.status_code == 200:
         data = response.json()
         playcount = int(data["user"]["playcount"])
+    elif response.status_code == 404:
+        os.remove(os.path.join(data_dir, f"{username}.csv"))
+        return
     else:
         return f"Erreur : {response.status_code}"
+   
 
     method = "user.getrecenttracks"
     limit = 200
@@ -50,7 +65,7 @@ def update_data(username, progress_callback=None):
 
             # Appel du callback pour la progress bar
             if total_pages > 0 and progress_callback:
-                percent = int((page / total_pages) * 100)
+                percent = min(int((page / total_pages) * 100), 100)
                 progress_callback(percent)
 
             page += 1
@@ -80,13 +95,13 @@ def update_data(username, progress_callback=None):
 
     # Fusion avec ancien CSV
     new_df = pd.read_csv(output_file)
-    if new_df.empty:
-        return "Aucune nouvelle donnée"
     old_df = pd.read_csv(os.path.join(data_dir, f"{username}.csv"))
     combined_df = pd.concat([new_df, old_df]).drop_duplicates().reset_index(drop=True)
     combined_df.to_csv(os.path.join(data_dir, f"{username}.csv"), index=False)
-
-    return f"Mise à jour terminée : {len(all_tracks)} tracks récupérés !"
+    ##Supression du cache pour forcer le rechargement
+    updated_df = load_file_with_cache(os.path.join(data_dir, f"{username}.csv"))
+    st.session_state["data"][f"{username}.csv"] = updated_df
+    return f"Update finished : {len(all_tracks)} tracks retrieved !"
 
 def update_data_spin(username):
     """
@@ -97,7 +112,7 @@ def update_data_spin(username):
     loading_text = st.markdown(
         """
         <div style="display:flex; justify-content:center; align-items:center; height:50px;">
-            <p style="font-size:20px; font-weight:bold;">Mise à jour des données...</p>
+            <p style="font-size:20px; font-weight:bold;">Data updating...</p>
         </div>
         """,
         unsafe_allow_html=True
@@ -115,4 +130,5 @@ def update_data_spin(username):
     progress_bar.empty()
     loading_text.empty()
 
-    st.success(result)
+    if result is not None:
+        st.success(result)
