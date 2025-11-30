@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import Solo
 import pandas as pd
+from functions.Data import update_data_spin
+
 
 def show_page():
     st.title("🎶 Melodata 🎶")
@@ -78,6 +80,7 @@ def show_page():
                     st.metric("Première écoute", first_listen)
                     st.metric("Dernière écoute", last_listen)
 
-                    
+            st.button("Mettre à jour les données", key="go_solo", on_click=lambda: update_data_spin(st.session_state.utilisateur_selectionne))
+              
         except Exception as e:
             st.error(f"Erreur lors de la lecture du fichier : {e}")
