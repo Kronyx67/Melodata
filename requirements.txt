@@ -1,4 +1,3 @@
-streamlit-navigation-bar
 streamlit-community-navigation-bar
 plotly.express
 pandas
