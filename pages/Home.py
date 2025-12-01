@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from pages.functions.Data import update_data_spin
 from pages.functions.cache_utils import load_csv_folder_with_cache
+import time
 
 
 
@@ -42,8 +43,17 @@ def show_page():
         user_path = os.path.join("data", f"{user}.csv")
         if not os.path.exists(user_path):
             update_data_spin(user)
+            
+            max_retries = 10
+            for _ in range(max_retries):
+                # On vérifie si le fichier est visible dans le dossier data
+                if f"{user}.csv" in os.listdir("data"):
+                    break # Il est là ! On peut lancer le rechargement
+                time.sleep(0.5)
+            
             st.session_state.data = load_csv_folder_with_cache("data")
             st.toast(f"Welcome {user} ! Data loaded", icon="🎉")
+            
         
         # 1. Chargement rapide des données pour la preview
         try:
