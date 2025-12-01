@@ -87,3 +87,4 @@ def show_page():
               
         except Exception as e:
             st.error(f"{user} doesn't exist on Last.fm")
+            st.error(f"Erreur : {e}")
