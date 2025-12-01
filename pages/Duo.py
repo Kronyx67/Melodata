@@ -49,6 +49,11 @@ def show_page():
 
         with tab1:
             st.header("Weekly Duo Comparison")
+            st.caption(
+    "This heatmap compares the weekly listening activity of the two users, "
+    "green cells indicate weeks where the first user listened more, blue for the second user, grey for ties, and white where no data is available."
+)
+
             
             # --- Convertir la colonne de temps ---
             df["utc_time"] = pd.to_datetime(df["utc_time"], format="%d %b %Y, %H:%M")
@@ -190,12 +195,13 @@ def show_page():
         with tab2:
             col1, col2 = st.columns(2)
             with col1:
-                st.write("""
-                This table displays the 5 most commonly listened to artists,with the condition that a single user does not account for more than 80% of an artist's plays.
-                """)
+                
 
                 top_artists = get_top_artists(df)
                 st.subheader("Common Artists - Top 5")
+                st.caption("""
+                This table displays the 5 most commonly listened to artists, with the condition that a single user does not account for more than 80% of an artist's plays.
+                """)
                 st.dataframe(top_artists)
 
             with col2:

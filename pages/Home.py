@@ -24,6 +24,7 @@ def show_page():
         suggestions = [u for u in utilisateurs if recherche.lower() in u.lower()] + ([recherche] if recherche not in utilisateurs else [])
         if suggestions:
             st.write("**Suggestions :**")
+            st.caption("Click a button to select a user. The button on the right adds a new user if not listed.")
             cols = st.columns(len(suggestions))
             for i, suggestion in enumerate(suggestions):
                 with cols[i]:

@@ -948,7 +948,7 @@ def show_page():
                             period_label={'x': .98, 'y': .3, 'ha': 'right', 'va': 'center'},
                             period_fmt='%B %Y', # Month format
                             filter_column_colors=True
-                        ).data
+                        )
                         
                         # Extract video
                         start = html_str.find('base64,') + len('base64,')
