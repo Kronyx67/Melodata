@@ -42,17 +42,10 @@ def show_page():
         user = st.session_state.utilisateur_selectionne
         user_path = os.path.join("data", f"{user}.csv")
         if not os.path.exists(user_path):
-            update_data_spin(user)
-            
-            max_retries = 10
-            for _ in range(max_retries):
-                # On vérifie si le fichier est visible dans le dossier data
-                if f"{user}.csv" in os.listdir("data"):
-                    break # Il est là ! On peut lancer le rechargement
-                time.sleep(1)
-            
+            update_data_spin(user)            
             st.session_state.data = load_csv_folder_with_cache("data")
             st.toast(f"Welcome {user} ! Data loaded", icon="🎉")
+            st.rerun()
             
         
         # 1. Chargement rapide des données pour la preview
@@ -97,16 +90,9 @@ def show_page():
                     st.metric("First Meloz", first_listen)
                     st.metric("Last Meloz", last_listen)
 
-            st.button("Update your Data", key="go_solo", on_click=lambda: update_data_spin(st.session_state.utilisateur_selectionne))
-            max_retries = 10
-            for _ in range(max_retries):
-                # On vérifie si le fichier est visible dans le dossier data
-                if f"{user}.csv" in os.listdir("data"):
-                    break # Il est là ! On peut lancer le rechargement
-                time.sleep(1)
-            
+            st.button("Update your Data", key="go_solo", on_click=lambda: update_data_spin(st.session_state.utilisateur_selectionne))            
             st.session_state.data = load_csv_folder_with_cache("data")
-            st.toast(f"Welcome {user} ! Data loaded", icon="🎉")
+            st.rerun()
               
         except Exception as e:
             st.error(f"{user} doesn't exist on Last.fm")
