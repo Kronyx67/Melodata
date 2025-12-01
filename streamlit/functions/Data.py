@@ -69,7 +69,7 @@ def update_data(username, progress_callback=None):
                 progress_callback(percent)
 
             page += 1
-            time.sleep(0.2)
+            time.sleep(0.5)
         else:
             return f"Erreur à la page {page} : {response.status_code}"
 

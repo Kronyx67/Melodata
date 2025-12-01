@@ -3,7 +3,6 @@ streamlit-community-navigation-bar
 plotly.express
 pandas
 requests
-os
 bar_chart_race
 statsmodels
 ffmpeg

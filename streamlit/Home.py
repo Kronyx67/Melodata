@@ -22,7 +22,7 @@ def show_page():
 
     # Suggestions
     if recherche:
-        suggestions = [u for u in utilisateurs if recherche.lower() in u.lower()] + [recherche]
+        suggestions = [u for u in utilisateurs if recherche.lower() in u.lower()] + ([recherche] if recherche not in utilisateurs else [])
         if suggestions:
             st.write("**Suggestions :**")
             cols = st.columns(len(suggestions))
