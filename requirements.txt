@@ -1,4 +1,5 @@
-streamlit-community-navigation-bar
+streamlit-navigation-bar
+#streamlit-community-navigation-bar
 plotly.express
 pandas
 requests
