@@ -1,6 +1,9 @@
 [theme]
-primaryColor = "#8B5CF6"            # Violet vif pour les boutons
-backgroundColor = "#FAFAFA"          # Fond blanc cassé (plus doux que blanc pur)
-secondaryBackgroundColor = "#F3E8FF" # Violet très pâle pour sidebar
-textColor = "#1F2937"                # Gris très foncé (meilleur que noir pur)
+primaryColor = "#3B82F6"             # Bleu royal vif
+backgroundColor = "#FFFFFF"          # Blanc pur pour la clarté
+secondaryBackgroundColor = "#EDE9FE" # Violet lavande très doux (le lien avec la musique)
+textColor = "#0F172A"                # Bleu nuit presque noir
 font = "sans serif"
+
+[client]
+showSidebarNavigation = false

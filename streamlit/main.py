@@ -7,7 +7,8 @@ import Solo
 import Duo
 from functions.cache_utils import load_csv_folder_with_cache
 
-st.set_page_config(page_title="Mon App Multi-Pages", layout="wide")
+st.set_page_config(page_title="Mon App Multi-Pages", layout="wide",
+    initial_sidebar_state="collapsed")
 
 # Initialisation dans session_state (une seule fois par session)
 if "data" not in st.session_state:
