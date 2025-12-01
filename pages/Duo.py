@@ -2,10 +2,10 @@ import streamlit as st
 import os
 import plotly.graph_objects as go
 import pandas as pd
-from functions.Duo import get_top_artists, get_cumulative_unique_artists_plot, get_top_artists_treemap
-from functions.Duo import get_top_albums
-from functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
-from functions.Duo import display_album_comparison
+from .functions.Duo import get_top_artists, get_cumulative_unique_artists_plot, get_top_artists_treemap
+from .functions.Duo import get_top_albums
+from .functions.Duo import get_top_tracks, get_total_and_unique_tracks_plot
+from .functions.Duo import display_album_comparison
 import numpy as np
 
 def show_page():

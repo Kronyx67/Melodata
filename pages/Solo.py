@@ -262,13 +262,13 @@ def show_page():
             matrix_to_plot = matrix_art.div(matrix_art.sum(axis=1), axis=0) * 100
             z_label = "Concentration (%)"
             hover_fmt = ".1f"
-            color_scale = "RdBu_r" 
+            color_scale = "plasma" 
         else:
             # Données brutes
             matrix_to_plot = matrix_art
             z_label = "Plays"
             hover_fmt = "d" 
-            color_scale = "RdBu_r"
+            color_scale = "plasma"
 
         # --- 3. CRÉATION DU GRAPHIQUE ---
         fig_heat = px.imshow(

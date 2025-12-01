@@ -5,7 +5,7 @@ import csv
 import time
 from pprint import pprint
 import streamlit as st
-from functions.cache_utils import load_csv_file, load_file_with_cache
+from .cache_utils import load_csv_file, load_file_with_cache
 
 api_key = "ea311d73665c24b237160f90bcb986ff"
 

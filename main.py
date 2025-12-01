@@ -2,13 +2,12 @@ import streamlit as st
 from streamlit_navigation_bar import st_navbar
 import os
 import pandas as pd
-import Home
-import Solo
-import Duo
-from functions.cache_utils import load_csv_folder_with_cache
+import pages.Home as Home
+import pages.Solo as Solo
+import pages.Duo as Duo
+from pages.functions.cache_utils import load_csv_folder_with_cache
 
-st.set_page_config(page_title="Mon App Multi-Pages", layout="wide",
-    initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Mon App Multi-Pages", layout="wide")
 
 # Initialisation dans session_state (une seule fois par session)
 if "data" not in st.session_state:

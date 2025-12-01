@@ -1,8 +1,7 @@
 import streamlit as st
 import os
-import Solo
 import pandas as pd
-from functions.Data import update_data_spin
+from pages.functions.Data import update_data_spin
 
 
 def show_page():
