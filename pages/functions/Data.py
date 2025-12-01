@@ -103,7 +103,7 @@ def update_data(username, progress_callback=None):
     ##Supression du cache pour forcer le rechargement
     updated_df = load_file_with_cache(os.path.join(data_dir, f"{username}.csv"))
     st.session_state["data"][f"{username}.csv"] = updated_df
-    return f"Update finished : {len(all_tracks)} tracks retrieved !"
+    return f"Update finished : {len(all_tracks)} Meloz retrieved !"
 
 def update_data_spin(username):
     """

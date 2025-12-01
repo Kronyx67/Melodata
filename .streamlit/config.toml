@@ -7,6 +7,3 @@ font = "sans serif"
 
 [client]
 showSidebarNavigation = false
-
-[ui]
-hideTopBar = true
