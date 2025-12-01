@@ -49,7 +49,7 @@ def show_page():
                 # On vérifie si le fichier est visible dans le dossier data
                 if f"{user}.csv" in os.listdir("data"):
                     break # Il est là ! On peut lancer le rechargement
-                time.sleep(0.5)
+                time.sleep(1)
             
             st.session_state.data = load_csv_folder_with_cache("data")
             st.toast(f"Welcome {user} ! Data loaded", icon="🎉")
@@ -98,7 +98,15 @@ def show_page():
                     st.metric("Last Meloz", last_listen)
 
             st.button("Update your Data", key="go_solo", on_click=lambda: update_data_spin(st.session_state.utilisateur_selectionne))
+            max_retries = 10
+            for _ in range(max_retries):
+                # On vérifie si le fichier est visible dans le dossier data
+                if f"{user}.csv" in os.listdir("data"):
+                    break # Il est là ! On peut lancer le rechargement
+                time.sleep(1)
+            
             st.session_state.data = load_csv_folder_with_cache("data")
+            st.toast(f"Welcome {user} ! Data loaded", icon="🎉")
               
         except Exception as e:
             st.error(f"{user} doesn't exist on Last.fm")
