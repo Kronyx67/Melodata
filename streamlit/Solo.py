@@ -5,10 +5,9 @@ import plotly.express as px
 import bar_chart_race as bcr
 import base64
 
-color_theme = "viridis_r"
-
 def show_page():
     # --- Configuration de la page ---
+    color_theme = "viridis_r"
     st.set_page_config(page_title="SoloPage", layout="wide")
 
     st.title("🎧Solo Page")
@@ -869,7 +868,7 @@ def show_page():
     
     # ========== TAB 2: BAR CHART RACE ==========
     with tab2:
-        st.header("🏁 Bar Chart Race )")
+        st.header("🏁 Bar Chart Race")
         
         # Data Preparation
         if not pd.api.types.is_datetime64_any_dtype(df["utc_time"]):
