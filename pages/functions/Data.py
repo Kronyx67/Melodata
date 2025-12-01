@@ -16,11 +16,11 @@ def update_data(username, progress_callback=None):
     """
     if username is None:
         return "No user selected"
+    
+    project_root = os.getcwd()
+    data_dir = os.path.join(project_root, "data")
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    melodata_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))), "Melodata")
-    data_dir = os.path.join(melodata_dir, "data")
-    data_temp_dir = os.path.join(melodata_dir, "streamlit", "functions", "data_temp")
+    data_temp_dir = os.path.join(project_root, "data_temp")
 
     if not os.path.exists(os.path.join(data_dir, f"{username}.csv")):
         user_file = os.path.join(data_dir, f"{username}.csv")

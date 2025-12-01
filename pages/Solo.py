@@ -311,8 +311,6 @@ def show_page():
         df["week"] = df["utc_time"].dt.isocalendar().week
 
         # --- FIRST ROW: PODIUMS ---
-        st.subheader("🌟 Highlights")
-        
         col1, col2 = st.columns(2)
 
         with col1:
