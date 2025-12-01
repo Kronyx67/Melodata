@@ -19,8 +19,10 @@ def update_data(username, progress_callback=None):
     
     project_root = os.getcwd()
     data_dir = os.path.join(project_root, "data")
-
-    data_temp_dir = os.path.join(project_root, "data_temp")
+    data_temp_dir = os.path.join(project_root, "pages","functions","data_temp")
+    
+    if not os.path.exists(data_temp_dir):
+        os.makedirs(data_temp_dir, exist_ok=True)
 
     if not os.path.exists(os.path.join(data_dir, f"{username}.csv")):
         user_file = os.path.join(data_dir, f"{username}.csv")
