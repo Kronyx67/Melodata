@@ -5,7 +5,7 @@ import csv
 import time
 from pprint import pprint
 import streamlit as st
-from .cache_utils import load_csv_file, load_file_with_cache, load_csv_folder_with_cache
+from .cache_utils import load_csv_file, load_file_with_cache, load_csv_folder_with_cache, load_csv_folder
 import time
 
 api_key = "ea311d73665c24b237160f90bcb986ff"
@@ -74,7 +74,7 @@ def update_data(username, progress_callback=None):
             page += 1
             time.sleep(0.5)
         else:
-            return f"Erreur à la page {page} : {response.status_code}"
+            return f"Erreur à la page {page} : {response.status_code}, please retry"
 
     # Écriture CSV temporaire
     output_file = os.path.join(data_temp_dir, "data_temp.csv")
@@ -135,8 +135,10 @@ def update_data_spin(username):
 
     if result is not None:
         st.success(result)
-        
-    time.sleep(5)
+    
+    load_csv_folder.clear()
+    
+    time.sleep(2)
     
     st.session_state.data = load_csv_folder_with_cache("data")
     st.rerun()
