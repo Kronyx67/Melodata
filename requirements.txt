@@ -6,4 +6,3 @@ requests
 bar_chart_race
 statsmodels
 ffmpeg
-streamlit-extras
