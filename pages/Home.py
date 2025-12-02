@@ -8,11 +8,7 @@ import time
 
 
 def show_page():
-    st.title("🎶 Melodata 🎶")
-    
-    if "data" not in st.session_state:
-         st.session_state.data = load_csv_folder_with_cache("data")
-    
+    st.title("🎶 Melodata 🎶")    
     fichiers = os.listdir("./data")
     fichiers = [
         f for f in os.listdir("./data")
